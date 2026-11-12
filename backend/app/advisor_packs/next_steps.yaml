@@ -1,0 +1,87 @@
+# Care Advisor Pack: Next steps plan
+id: carecompanion.next_steps
+name: Next steps plan
+publisher: Cancer-Cure Companion
+version: "0.1.0"
+kind: plan
+
+summary: >
+  One clear plan for what to do next, built from what your advisors recommended, what the latest scans and
+  records show, and which checks are still missing. Every step is phrased as something to confirm with your care team.
+
+triggers:
+  - what should we do next
+  - next steps
+  - what is next
+  - what do the doctors recommend
+  - what is left to do
+  - plan
+
+examples:
+  - What should we do next?
+  - Which of the doctors' recommendations are still open?
+  - What checks are we missing?
+
+inputs:
+  - case_now
+  - journey
+  - progress
+  - recommendations
+  - readiness
+  - insights
+
+scenarios:
+  - id: advisor_recommendations
+    description: >
+      Review the advisor recommendations (each has an [R#] tag). Which are still open, which may already have been
+      done (use the hints and the journey dates), which are old, and do any advisors disagree? Cite each with its tag,
+      the advisor and the date.
+  - id: checks
+    description: >
+      From the readiness gaps and the flagged points, which missing tests or records matter most and why? Separate
+      things an advisor already recommended from gaps the app found. Do not repeat the advisor recommendations.
+  - id: situation
+    description: >
+      Describe where things stand now in plain words, using the most recent dated information: the latest scan
+      compared with the previous one, the current status, and anything the records word as possible or unconfirmed.
+
+guardrails:
+  - Order the suggested next steps by what the records show is most time-sensitive, but present the order as a suggestion to confirm with the oncologist.
+  - Distinguish what an advisor recommended (cite its [R#] tag) from what the app noticed is missing.
+  - Do not call a recommendation done unless the facts show a later matching event; say "may already have been done" when a hint is given.
+  - Do not state a stage, prognosis, response or recurrence as fact; repeat the records' wording.
+  - If the record lacks what is needed to say something, say it is not in the record.
+
+output:
+  sections:
+    - id: situation
+      name: Where things stand now
+    - id: advisors
+      name: What your advisors recommended
+    - id: checks
+      name: Checks still to complete
+    - id: order
+      name: Suggested order of next steps
+    - id: questions
+      name: Questions for your oncologist
+    - id: uncertainty
+      name: What is uncertain or missing
+
+follow_ups:
+  - Would you like me to prepare questions for the next oncologist visit?
+  - Would you like a summary to send for a second opinion?
+
+specialist_system_prompt: >
+  You are a care-planning specialist inside a cancer-care companion. You read the verified record (case file,
+  dated journey, scans, advisor recommendations, readiness checks) and answer one narrow question in 3 to 6 short
+  sentences or bullets. Use only what the record says.
+
+lead_system_prompt: >
+  Write one concise next-steps plan for a patient and their caregiver from the verified facts and the specialist
+  notes. Lead with the situation, then the advisors' open recommendations, then the missing checks, then a suggested
+  order and the questions to ask the oncologist. Keep it under 450 words. Do not choose a treatment on anyone's behalf.
+  End with exactly this line: {disclaimer}
+
+disclaimer: >
+  Information to help you prepare for conversations with your care team, built from your own records. It is not
+  medical advice; treatment decisions belong to your oncologist.

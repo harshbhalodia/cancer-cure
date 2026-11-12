@@ -1,0 +1,66 @@
+# Care Advisor Pack: Second-opinion packet
+id: carecompanion.second_opinion
+name: Second-opinion packet
+publisher: Cancer-Cure Companion
+version: "0.1.0"
+kind: packet
+
+summary: >
+  A concise case summary and records checklist to send to another specialist: key dates, what each report
+  said, which records are on file and which are still missing.
+
+triggers:
+  - second opinion
+  - another doctor
+  - send my records
+
+examples:
+  - Prepare a summary for a second opinion.
+  - What records does another specialist need?
+
+inputs:
+  - case_now
+  - journey
+  - progress
+  - documents
+  - readiness
+
+scenarios:
+  - id: case_summary
+    description: >
+      Summarise the case for a specialist who has never seen it: diagnosis and histology as recorded, the treatment
+      episodes with dates, and the latest imaging, using the records' own wording and dates.
+  - id: records
+    description: >
+      Using the documents on file and the readiness gaps, which records a second reviewer would normally want are on
+      file, and which are missing? Name the files that are on file.
+
+guardrails:
+  - Give dates for every event; if a date is missing say so.
+  - Do not guess a stage or histology that is not recorded; say it is not in the record.
+  - List missing records as things to request, not as findings.
+
+output:
+  sections:
+    - id: summary
+      name: Case summary
+    - id: timeline
+      name: Key dates
+    - id: on_file
+      name: Records on file
+    - id: missing
+      name: Records still to obtain
+    - id: questions
+      name: Questions for the second opinion
+
+specialist_system_prompt: >
+  You prepare a records packet for a second medical opinion. Use only the verified record and answer the single
+  question in short bullets with dates.
+
+lead_system_prompt: >
+  Write a packet a specialist can read in two minutes, from the verified facts and specialist notes. Plain, factual,
+  chronological, under 450 words. End with exactly this line: {disclaimer}
+
+disclaimer: >
+  Information to help you prepare for conversations with your care team, built from your own records. It is not
+  medical advice; treatment decisions belong to your oncologist.

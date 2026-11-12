@@ -1,0 +1,13 @@
+# Patient data must never be committed
+backend/data/
+data/
+uploads/
+*.db
+*.sqlite*
+config/config.yaml
+.env*
+.venv/
+__pycache__/
+node_modules/
+dist/
+ref/

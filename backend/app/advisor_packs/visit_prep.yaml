@@ -1,0 +1,69 @@
+# Care Advisor Pack: Oncologist visit preparation
+id: carecompanion.visit_prep
+name: Oncologist visit preparation
+publisher: Cancer-Cure Companion
+version: "0.1.0"
+kind: packet
+
+summary: >
+  A one-page briefing for the next appointment: what has changed, which advisor recommendations to confirm,
+  and the questions worth asking, so the visit time is used well.
+
+triggers:
+  - prepare for the visit
+  - appointment
+  - questions for the oncologist
+  - what should I ask
+
+examples:
+  - Prepare me for the next oncologist visit.
+  - What should I ask the doctor?
+
+inputs:
+  - case_now
+  - journey
+  - progress
+  - recommendations
+  - insights
+  - readiness
+
+scenarios:
+  - id: what_changed
+    description: >
+      What has changed most recently? Compare the latest dated scan or report with the previous one and say what is
+      better, worse, unchanged or unclear, using the records' own wording and dates.
+  - id: questions
+    description: >
+      Write the 6 to 8 most useful questions to ask at the visit, each tied to a record: an open advisor
+      recommendation (cite its [R#] tag), a flagged finding, or a missing check. Phrase them as questions.
+
+guardrails:
+  - Questions must come from the records; do not add medical suggestions of your own.
+  - Do not state that anything is better or worse unless the records say so; otherwise say it is unclear.
+  - Keep every question short enough to read aloud.
+
+output:
+  sections:
+    - id: summary
+      name: Summary for the visit
+    - id: changes
+      name: What has changed
+    - id: confirm
+      name: Recommendations to confirm
+    - id: questions
+      name: Questions to ask
+    - id: bring
+      name: Bring with you
+
+specialist_system_prompt: >
+  You prepare a patient for an oncology appointment. Use only the verified record. Answer the single question in
+  short bullets with dates.
+
+lead_system_prompt: >
+  Write a one-page visit briefing for the patient and caregiver from the verified facts and specialist notes. Plain
+  language, short bullets, under 400 words. Under "Bring with you" list the most relevant reports by file name from
+  the facts. End with exactly this line: {disclaimer}
+
+disclaimer: >
+  Information to help you prepare for conversations with your care team, built from your own records. It is not
+  medical advice; treatment decisions belong to your oncologist.
