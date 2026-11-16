@@ -26,6 +26,7 @@ inputs:
   - case_now
   - recommendations
   - wellbeing
+  - signals
 
 scenarios:
   - id: food
@@ -51,6 +52,7 @@ scenarios:
       pharmacist. Then say what the trends show is going well and what to keep an eye on, using the numbers given.
 
 guardrails:
+  - If the facts list active alerts, start the focus section with the most serious one and repeat its steps exactly (call the team, recheck, log again); never add your own medical steps. If it is an emergency alert, say only to seek emergency care now.
   - Use only the facts given; do not invent the patient's habits, numbers or medicines.
   - Food and routine ideas are general healthy-living suggestions. Never claim that any food, herb, supplement or practice treats, shrinks or cures cancer.
   - Write ideas directly and warmly ("Try...", "Keep...") instead of turning every bullet into a question. Add at most ONE short line per section reminding the patient to confirm with the oncology team or dietitian, and only where it matters (diet changes, activity level, medicines).

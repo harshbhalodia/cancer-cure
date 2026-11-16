@@ -216,4 +216,61 @@ details.section { margin-top: 24px; }
 .badge.verdict { margin: 0; } .badge.verdict.good { background: #d5f0e3; color: #145a36; border-color: transparent; } .badge.verdict.watch { background: #fadbd8; color: #7b1e14; border-color: transparent; }
 .headlines li { padding: 6px 0; border-top: 1px solid var(--line); } .headlines li:first-child { border-top: 0; }
 .adh { display: flex; align-items: center; gap: 12px; padding: 7px 0; } .adh-label { width: 170px; font-size: .92rem; } .adh-pct { width: 44px; text-align: right; font-weight: 600; }
+.settle { border-left: 4px solid var(--danger); }
+.track { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); list-style: none; } .track:first-child { border-top: 0; }
+.track .rank { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; font-weight: 700; font-size: .85rem; }
+.track.urgent .rank { background: var(--danger); border-color: var(--danger); color: #fff; }
+.facts { font-weight: 600; margin-top: 3px; } .ask-title { margin-top: 8px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.asks { margin: 2px 0 6px; padding-left: 20px; font-size: .9rem; } .asks li { margin: 2px 0; }
+.go-now { margin: 6px 0; padding: 6px 10px; border-radius: 8px; background: #fadbd8; color: #7b1e14; font-weight: 600; }
+.questions { border-left: 4px solid #c9a227; } .question { padding: 10px 0; border-top: 1px solid var(--line); } .question:first-child { border-top: 0; }
+.q-detail { margin-top: 6px; max-width: 360px; }
+.message-card summary { cursor: pointer; } .message-card textarea { margin: 10px 0; width: 100%; font-size: .92rem; line-height: 1.45; }
+.csec.urgent { border-left: 4px solid var(--danger); } .csec.high { border-left: 4px solid #c9a227; }
+.csec .card-head h3 { display: flex; align-items: center; gap: 10px; } .csec .rank { width: 24px; height: 24px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); display: grid; place-items: center; font-size: .8rem; }
+.cq { padding: 8px 0; border-top: 1px solid var(--line); } .cq:first-child { border-top: 0; }
+.cq-main { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; } .cq-main input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--brand); }
+.cq.asked .cq-main span { color: var(--muted); } .cq textarea { margin-top: 6px; width: 100%; } .cq .link { margin-left: 30px; }
+.mention { padding: 7px 0; border-top: 1px solid var(--line); } .mention:first-child { border-top: 0; }
+.leave { border-left: 4px solid var(--brand); }
+/* ---- watch: alerts, multi-log, trends ---- */
+.alerts.emergency { border: 2px solid var(--danger); background: color-mix(in srgb, var(--danger) 7%, var(--panel)); }
+.alerts.urgent { border: 2px solid #d9822b; }
+.alerts.recovering, .alerts.watch { border-left: 4px solid #c9a227; }
+.alert-list { display: grid; gap: 12px; } .alert-list.busy { opacity: .6; pointer-events: none; }
+.alert-card { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); list-style: none; }
+.alert-card.emergency { border-color: var(--danger); } .alert-card.urgent { border-color: #d9822b; } .alert-card.recovering { border-color: #2fa36b; } .alert-card.ack { opacity: .7; }
+.alert-top { display: flex; gap: 10px; align-items: flex-start; } .alert-ico { font-size: 1.3rem; }
+.badge.lvl-emergency { background: var(--danger); color: #fff; border-color: transparent; } .badge.lvl-urgent { background: #fdebd0; color: #7a4300; border-color: transparent; }
+.badge.lvl-watch { background: #fff3c4; color: #6b5200; border-color: transparent; } .badge.lvl-recovering { background: #d5f0e3; color: #145a36; border-color: transparent; }
+.steps { margin: 8px 0; padding: 0; list-style: none; display: grid; gap: 4px; } .step { font-size: .92rem; } .step.call { font-weight: 700; }
+.ack-note { flex: 1; min-width: 180px; width: auto; } .alert-card select { width: auto; }
+.pulse { animation: pulse 1.4s ease-in-out infinite; } @keyframes pulse { 50% { transform: scale(1.18); } }
+.global-alert { display: block; width: 100%; border: 0; border-radius: 0; padding: 10px 18px; text-align: left; font-weight: 700; background: #d9822b; color: #fff; cursor: pointer; position: sticky; top: 0; z-index: 20; }
+.global-alert.emergency { background: var(--danger); }
+.log-card { border-left: 4px solid var(--brand); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.chip-btn { padding: 5px 12px; border-radius: 99px; font-size: .86rem; background: var(--bg); }
+.chip-btn.on { background: #fdebd0; border-color: #d9822b; font-weight: 700; color: #7a4300; } .chip-btn.emergency.on { background: #fadbd8; border-color: var(--danger); color: #7b1e14; }
+.vitals { margin: 10px 0 0; } .vitals summary { cursor: pointer; } .mini-field.inline { display: flex; align-items: center; gap: 8px; } .mini-field.inline input { width: 80px; }
+.log-result { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border-left: 4px solid var(--brand); }
+.log-result.emergency { background: #fadbd8; border-color: var(--danger); color: #7b1e14; } .log-result.urgent { background: #fdebd0; border-color: #d9822b; color: #7a4300; } .log-result.good { background: #d5f0e3; border-color: #2fa36b; color: #145a36; }
+.log-list { margin-top: 10px; } .log-list li { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--line); } .log-time { font-weight: 700; font-variant-numeric: tabular-nums; width: 46px; }
+.areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.area { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); display: grid; gap: 2px; font-size: .88rem; } .area b { font-size: .85rem; }
+.area.ok { background: color-mix(in srgb, #2fa36b 9%, var(--panel)); }
+/* ---- vaccine workbench ---- */
+.vax-warn { border-left: 4px solid #c9a227; background: color-mix(in srgb, #c9a227 10%, var(--panel)); font-size: .92rem; }
+.draft { white-space: pre-wrap; font: inherit; font-size: .88rem; background: var(--bg, #f6f6f4); border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 10px 12px; margin: 4px 0 0; }
+.alert.ok { background: #d5f0e3; color: #145a36; cursor: pointer; }
+.ask-row { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); } .ask-row:first-child { border-top: 0; }
+.funnel { display: grid; gap: 6px; } .funnel-row { display: grid; grid-template-columns: 110px 1fr 90px; gap: 10px; align-items: center; } .funnel-name { font-size: .85rem; text-transform: capitalize; }
+.vtable-wrap { overflow-x: auto; } .vtable { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.vtable th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.vtable td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; } .vtable tr.clickable { cursor: pointer; } .vtable tr.clickable:hover { background: var(--bg); }
+.vdetail td { background: var(--bg); } .vtable code { font-size: .85rem; letter-spacing: .02em; }
+.badge.tier-A { background: #d5f0e3; color: #145a36; border-color: transparent; } .badge.tier-B { background: #fff3c4; color: #6b5200; border-color: transparent; } .badge.tier-C { background: #fdebd0; color: #7a4300; border-color: transparent; }
+.btn-link { display: inline-block; padding: 9px 16px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; background: var(--panel); color: var(--ink); }
+.evals li { padding: 6px 0; border-top: 1px solid var(--line); } .evals li:first-child { border-top: 0; } .area.recovering { background: #d5f0e3; color: #145a36; } .area.watch { background: #fff3c4; color: #6b5200; } .area.urgent { background: #fdebd0; color: #7a4300; } .area.emergency { background: #fadbd8; color: #7b1e14; }
+@media (prefers-color-scheme: dark) { .go-now { background: #4a1f1a; color: #f7cbc5; } }
 @media (prefers-color-scheme: dark) { .badge.verdict.good, .badge.definite, .badge.ready { background: #174632; color: #bfeccf; } .badge.verdict.watch { background: #4a1f1a; color: #f7cbc5; } }

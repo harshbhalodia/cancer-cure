@@ -24,6 +24,7 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.models import ClinicalEvent, Document, DocumentChunk, Event, Job
 from app.services import advisors, agent, casefile, documents, llm, ocr, recommendations, scan_extract, wellness
+from app.services import vaccine as vaccine_svc
 
 log = logging.getLogger("cc.jobs")
 
@@ -263,6 +264,39 @@ def _run_actions(db: Session, job: Job) -> None:
     enqueue_meds(db, doc)
 
 
+def enqueue_vaccine(db: Session, dataset: str, params: dict | None = None, kind: str = "vaccine") -> Job | None:
+    for j in db.query(Job).filter(Job.kind == kind, Job.status.in_(("queued", "running"))):
+        if (j.payload or {}).get("dataset") == dataset:
+            return None
+    job = Job(kind=kind, filename=("Vaccine candidate selection" if kind == "vaccine" else "Vaccine pipeline evals"), payload={"dataset": dataset, "params": params or {}})
+    db.add(job)
+    db.commit()
+    return job
+
+
+def _run_vaccine(db: Session, job: Job) -> None:
+    def progress(step: str) -> None:
+        job.result = {"detail": step}
+        db.commit()
+
+    try:
+        row = vaccine_svc.run(db, job.payload.get("dataset", "patient"), job.payload.get("params"), progress)
+    except vaccine_svc.Blocked as exc:
+        raise ValueError(str(exc)) from exc
+    job.result = {"run_id": row.id, "selected": len(row.result["selected"]), "hash": row.result_hash[:12]}
+    db.add(Event(kind="case", title=f"Vaccine candidate shortlist built ({row.dataset})", detail=f"{len(row.result['selected'])} candidate(s)", ref_type="vaccine", ref_id=row.id))
+
+
+def _run_vaccine_eval(db: Session, job: Job) -> None:
+    job.result = {"detail": "running evals"}
+    db.commit()
+    try:
+        report = vaccine_svc.run_evals(db, bool((job.payload.get("params") or {}).get("board")))
+    except vaccine_svc.Blocked as exc:
+        raise ValueError(str(exc)) from exc
+    job.result = {"passed": report["passed"], "total": report["total"]}
+
+
 def _run_plan(db: Session, job: Job) -> None:
     pack = advisors.load_packs().get(job.payload.get("pack_id", ""))
     if pack is None:
@@ -430,14 +464,14 @@ def _new_information(db: Session, extracted: dict) -> dict | None:
 def run_one(db: Session) -> bool:
     """Run the next queued job: ingests first (every file appears fast), then analysis of readable
     documents, then the slow page-by-page reading of scans. Returns False if idle."""
-    priority = case((Job.kind.in_(("ingest", "plan")), 0), (Job.kind.in_(("analyze", "journey", "actions", "meds")), 1), else_=2)
+    priority = case((Job.kind.in_(("ingest", "plan")), 0), (Job.kind.in_(("analyze", "journey", "actions", "meds", "vaccine", "vaccine_eval")), 1), else_=2)
     job = db.query(Job).filter(Job.status == "queued").order_by(priority, Job.id).first()
     if job is None:
         return False
     job.status, job.started_at, job.attempts, job.error = "running", _now(), job.attempts + 1, ""
     db.commit()
     runner = {"ingest": _run_ingest, "analyze": _run_analyze, "ocr": _run_ocr, "journey": _run_journey,
-              "actions": _run_actions, "meds": _run_meds, "plan": _run_plan}[job.kind]
+              "actions": _run_actions, "meds": _run_meds, "plan": _run_plan, "vaccine": _run_vaccine, "vaccine_eval": _run_vaccine_eval}[job.kind]
     try:
         runner(db, job)
         job.status = "done"

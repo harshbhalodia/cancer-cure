@@ -37,6 +37,10 @@ def init_db() -> None:
         doc_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(cc_document)"))}
         if "text_source" not in doc_cols:
             conn.execute(text("ALTER TABLE cc_document ADD COLUMN text_source VARCHAR(20) NOT NULL DEFAULT 'pdf_text'"))
+        rec_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(cc_recommendation)"))}
+        for col in ("urgency", "verified"):
+            if rec_cols and col not in rec_cols:
+                conn.execute(text(f"ALTER TABLE cc_recommendation ADD COLUMN {col} VARCHAR(10) NOT NULL DEFAULT ''"))
         # Full-text index over document chunks; rows are kept in sync by services/documents.py.
         conn.execute(
             text(

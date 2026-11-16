@@ -1,20 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { api, type DoNextItem, type PackInfo } from "../api";
+import { MessageCard, Questions, SettleFirst, usePriorities } from "./Priorities";
 
 const KIND_LABEL: Record<string, string> = { recommendation: "Advisor advised", finding: "From the reports", check: "Missing check" };
 const SEV_CLASS: Record<string, string> = { attention: "attention", advice: "advice", question: "question", info: "info", check: "check" };
 
+function badgeFor(it: DoNextItem): { cls: string; text: string } {
+  if (it.urgency === "urgent") return { cls: "attention", text: "Urgent — ask the care team" };
+  if (it.urgency === "high") return { cls: "partial", text: "High priority — ask the care team" };
+  if (it.nature === "conditional") return { cls: "", text: "Only if…" };
+  if (it.nature === "verify") return { cls: "", text: "Check if it was done" };
+  if (it.severity === "attention") return { cls: "attention", text: "Needs attention" };
+  return { cls: it.kind === "recommendation" ? "partial" : "", text: KIND_LABEL[it.kind] };
+}
+
 function DoNextCard({ it, onChanged }: { it: DoNextItem; onChanged: () => void }) {
-  const set = (status: string) => api.setRecStatus(it.rec_id!, status).then(onChanged);
+  const set = (status: string, verified?: string) => api.setRecStatus(it.rec_id!, status, undefined, verified).then(onChanged);
   return (
     <li className={`donext ${SEV_CLASS[it.severity] ?? ""}`}>
       <span className="rank">{it.rank}</span>
       <div className="grow">
         <div>
-          <span className={`badge ${it.severity === "attention" ? "attention" : it.kind === "recommendation" ? "partial" : ""}`}>
-            {it.severity === "attention" ? "Needs attention" : KIND_LABEL[it.kind]}
-          </span>{" "}
+          <span className={`badge ${badgeFor(it).cls}`}>{badgeFor(it).text}</span>{" "}
           <strong>{it.title}</strong>
         </div>
         <div className="small">{it.detail}</div>
@@ -27,7 +35,8 @@ function DoNextCard({ it, onChanged }: { it: DoNextItem; onChanged: () => void }
         ))}
         {it.kind === "recommendation" && (
           <div className="row" style={{ justifyContent: "flex-start", marginTop: 4 }}>
-            <button className="small-btn primary" onClick={() => set("done")}>Done</button>
+            <button className="small-btn primary" onClick={() => set("done")}>{it.nature === "verify" ? "Yes, it was done" : "Done"}</button>
+            {it.nature === "verify" && <button className="small-btn" onClick={() => set("open", "not_done")}>No, it was not done</button>}
             <button className="small-btn" onClick={() => set("dismissed")}>Not relevant</button>
           </div>
         )}
@@ -109,6 +118,7 @@ export default function PlanTab({ version, onChanged }: { version: number; onCha
   const [copied, setCopied] = useState(false);
   const [detail, setDetail] = useState("");
   const [err, setErr] = useState("");
+  const { data: prio, reload: prioReload } = usePriorities(version);
 
   const loadItems = useCallback(() => api.nextSteps().then((r) => setItems(r.do_next)), []);
   const loadPacks = useCallback(
@@ -147,14 +157,21 @@ export default function PlanTab({ version, onChanged }: { version: number; onCha
   if (!items) return <p className="muted">Loading…</p>;
   const shown = showAll ? items : items.slice(0, 8);
   const visitList = items
-    .filter((i) => i.kind !== "recommendation" || !i.possibly_done)
+    .filter((i) => i.kind !== "recommendation" || (!i.possibly_done && i.nature === "current"))
     .slice(0, 12)
-    .map((i, n) => `${n + 1}. ${i.ask || i.title}${i.kind === "recommendation" ? ` (${i.detail})` : ""}`)
+    .map((i, n) => `${n + 1}. ${i.ask || i.title}${i.kind === "recommendation" && i.source !== "app" ? ` (${i.detail})` : ""}`)
     .join("\n");
   const pack = packs.find((p) => p.id === selected);
 
   return (
     <div>
+      {prio && (
+        <>
+          <SettleFirst tracks={prio.tracks} />
+          <Questions questions={prio.questions} onAnswered={() => { void prioReload(); void loadItems(); onChanged(); }} />
+          <MessageCard message={prio.message} />
+        </>
+      )}
       <h2 className="section" style={{ marginTop: 8 }}>Do next <span className="muted small">— ranked by urgency, with the reason for each</span></h2>
       {items.length === 0 && <p className="muted">Nothing to do yet. Upload reports and the plan fills in.</p>}
       <ol className="donext-list">

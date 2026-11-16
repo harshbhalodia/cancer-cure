@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Document, Event, Fact, Finding, Measurement, Scan
-from app.services import jobs, llm, readiness, scan_extract
+from app.services import jobs, llm, priorities, readiness, scan_extract
 from app.services import requirements as req
 
 router = APIRouter(prefix="/api")
@@ -96,6 +96,7 @@ def save_scan(doc_id: int, body: ScanIn, db: Session = Depends(get_db)) -> dict:
     db.add(Event(kind="scan", title=f"Scan data confirmed ({body.modality or 'imaging'} {scan_date})",
                  detail=f"{len(body.lesions)} lesion(s), {len(body.findings)} finding(s) from {doc.filename}", ref_type="document", ref_id=doc.id))
     db.commit()
+    priorities.sync(db)
     return readiness.progress(db)
 
 

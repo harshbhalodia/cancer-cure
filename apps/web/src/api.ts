@@ -233,6 +233,9 @@ export interface DoNextItem {
   notes: string[];
   possibly_done: boolean;
   rec_id?: number;
+  nature?: "current" | "conditional" | "verify";
+  urgency?: "" | "urgent" | "high";
+  source?: string;
   gap_key?: string;
   evidence: { document_id: number | null; filename: string; quote: string }[];
 }
@@ -253,6 +256,19 @@ export interface Rec {
   quote: string;
   addressed_by: { date: string; title: string }[];
   age_days: number | null;
+  nature: "current" | "conditional" | "verify";
+  urgency: "" | "urgent" | "high";
+  verified: string;
+}
+export interface PriorityTrack {
+  id: string; priority: "urgent" | "high"; label: string; title: string; why: string; facts: string[]; asks: string[];
+  evidence: { document_id: number | null; filename: string; quote: string }[]; go_now: string;
+}
+export interface PriorityQuestion {
+  id: string; text: string; why: string; options: { value: string; label: string }[]; detail_label?: string;
+}
+export interface Priorities {
+  tracks: PriorityTrack[]; questions: PriorityQuestion[]; message: { available: boolean; text: string; attach: string };
 }
 export interface PlanOut {
   id: number;
@@ -311,6 +327,105 @@ export interface Trends {
   day: string; metrics: TrendMetric[]; headlines: { tone: "good" | "watch" | "calm"; text: string }[];
   adherence: { domain: string; label: string; icon: string; habits: number; this_week: number | null; last_week: number | null }[];
   checkin_days: number; checkin_streak: number;
+}
+
+export interface ConsultQuestion { key: string; text: string }
+export interface ConsultSection { id: string; title: string; priority: "urgent" | "high"; context: string[]; questions: ConsultQuestion[] }
+export interface Consult {
+  day: string; status: "draft" | "saved"; sections: ConsultSection[]; mention: { id: string; text: string; note: string }[];
+  leave_with: string[]; emergency: string; answers: Record<string, { asked: boolean; answer: string }>; advice: string;
+  history: { day: string; answered: number; advice: string }[];
+}
+
+export interface WatchFlag { key: string; label: string; level: string }
+export interface WatchReading {
+  id: number; time: string; day: string; energy: number | null; mood: number | null; appetite: number | null; pain: number | null;
+  temp_c: number | null; pulse: number | null; spo2: number | null; bp_sys: number | null; bp_dia: number | null; weight_kg: number | null;
+  flags: string[]; note: string;
+}
+export interface WatchSignal {
+  id: number; key: string; level: "emergency" | "urgent" | "watch" | "recovering" | "info"; domain: string; title: string; why: string;
+  actions: { text: string; kind: "call" | "check" | "do" | "log" }[]; status: "open" | "ack" | "resolved"; ack_note: string;
+  since: string; recheck_at: string | null; recheck_due: boolean; resolved_at: string | null;
+}
+export interface WatchSnapshot {
+  active: WatchSignal[]; fresh: string[]; counts: Record<string, number>; highest: string | null; due: number;
+  check_now?: string[]; history?: WatchSignal[];
+}
+export interface WatchTrends {
+  metrics: { key: string; label: string; unit: string; series: { day: string; value: number }[]; latest: number; slope_per_day: number | null; lower_is_better: boolean | null }[];
+  readings_logged: number; days_with_logs: number;
+}
+export interface WatchSummary { counts: Record<string, number>; highest: string | null; due: number; fresh: string[]; headline: string }
+
+export interface VaxCandidate {
+  id: string; gene: string; change: string; peptide: string; wt_peptide: string; length: number; allele: string; affinity_nM: number;
+  presentation_pct: number; wt_affinity_nM: number; vaf: number | null; tpm: number | null; tier: "A" | "B" | "C"; score: number;
+  hotspot: boolean; flags: string[]; components: Record<string, number>;
+}
+export interface VaxRun {
+  id: number; dataset: string; created_at: string; pipeline_version: string; predictor: string; input_hash: string; result_hash: string;
+  alleles_used: string[]; alleles_unsupported: string[]; warnings: string[]; stages: { name: string; in: number; out: number }[];
+  rejected: { variant_id: number; gene: string; change: string; stage: string; reason: string }[]; candidates: VaxCandidate[]; selected: VaxCandidate[];
+  tiers: Record<string, number>; params: Record<string, number | number[]>;
+}
+export interface VaxEval { predictor: string; passed: number; total: number; note: string; checks: { name: string; passed: boolean; detail: string; kind: string }[] }
+export interface VaxData { variants: number; hla: string[]; with_normal: number; with_rna: number; need_reference: string[]; sources: string[] }
+export interface CohortView {
+  label: string; n: number; strong_p10: number; strong_median: number; strong_p90: number; selected_median: number;
+  p_strong_ge: Record<string, number>; p_none: number; tierA_median: number; p_tierA_ge3: number; top_score_median: number; germline_selected_mean: number; median_genes: number;
+}
+export interface CohortSummary {
+  complete: boolean; scenarios: number; views: Record<string, CohortView>;
+  burden_bins: { label: string; n: number; full_strong_median: number; p_full_strong_ge3: number; p_full_none: number; p_panel_strong_ge1: number }[];
+  alleles: { allele: string; n: number; mean_strong: number; delta_vs_all: number }[];
+  paired: Record<string, number>; hash?: string; seconds?: number;
+  meta?: { predictor: string; peptides: number; alleles: string[]; equivalence: { compared: number; same_best_allele: number; ok: boolean } } | null;
+}
+export interface AuditScore { true_flags: number; false_flags: number; missed: number; precision: number; recall: number; f1: number; cases_with_inherited_caught: number; clean_cases_with_false_alarm: number }
+export interface Audit {
+  status: { state: string; message?: string; done?: number; target?: number };
+  summary: { cases: number; answered: number; failed: number; with_inherited: number; model: AuditScore; rule: AuditScore; median_secs: number; verdict: string; model_better_than_rule: boolean;
+    memo?: { text: string; rejected_draft?: string; problems: string[]; passed: boolean } } | null;
+}
+export interface Cohort {
+  audit: Audit;
+  status: { state: string; message?: string; done?: number; target?: number; elapsed_s?: number; rate?: number };
+  summary: CohortSummary | null; situation: string[];
+  compare: { view_label: string; mutations: number; strong_variants: number; selected: number; percentile: number; median_similar: number; basis: string } | null;
+}
+export interface TreatmentOptions {
+  first: string[]; note: string;
+  options: { id: string; title: string; evidence: string; what: string; ask: string[]; records: string[] }[];
+}
+export interface TrialFinding { status: "ok" | "check" | "missing" | "routine"; text: string; ask: string; key: string }
+export interface TrialAssessment {
+  id: number; nct_id: string; title: string; status: string; phase: string; verified: string; last_update: string; url: string; fetched_at: string;
+  counts: Record<string, number>; notes: string[]; letter: string; profile: Record<string, string>; log: { when: string; text: string }[];
+  key_issues: { key: string; status: string; text: string; ask: string; criterion: string }[];
+  criteria: { n: number; kind: string; text: string; status: string; findings: TrialFinding[] }[];
+  central: { name: string; role: string; phone: string; email: string }[];
+  officials: { name: string; affiliation: string; role: string }[];
+  sites: { facility: string; city: string; country: string; status: string; contacts: { name: string; role: string; phone: string; email: string }[] }[];
+}
+export interface TrialBrief { id: number; nct_id: string; title: string; status: string; counts: Record<string, number> }
+export interface TrialHit { nct_id: string; title: string; status: string; phase: string; countries: string[] }
+export interface FastTrack {
+  encouraging: { text: string; source: string }[];
+  today: { id: string; title: string; minutes: number; why: string }[];
+  steps: { when: string; title: string; detail: string }[];
+  drafts: { id: string; title: string; to: string; text: string }[];
+  findings: { key: string; text: string; document_id: number; filename: string }[];
+  cautions: string[];
+}
+export interface Vaccine {
+  predictor: { available: boolean; name: string };
+  readiness: { status: string; unmet: { key: string; label: string; status: string }[]; blocked_by: string[] } | null;
+  asks: { key: string; label: string; status: string; met: boolean; why: string; ask: string }[];
+  patient: VaxData; synthetic: VaxData; case_hla: string[];
+  runs: { id: number; dataset: string; created_at: string; selected: number; tiers: Record<string, number> | null; result_hash: string }[];
+  latest: { patient: VaxRun | null; synthetic: VaxRun | null };
+  eval: VaxEval | null; jobs: { id: number; kind: string; status: string; detail: string; error: string }[];
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -379,7 +494,47 @@ export const api = {
   nextSteps: () => call<{ do_next: DoNextItem[]; counts: { open_recommendations: number; findings: number; checks: number } }>("/nextsteps"),
   recommendations: () => call<Rec[]>("/recommendations"),
   addRecommendation: (r: { text: string; category: string; advisor: string; rec_date: string }) => call<Rec[]>("/recommendations", json("POST", r)),
-  setRecStatus: (id: number, status: string, note?: string) => call<Rec[]>(`/recommendations/${id}`, json("PATCH", { status, note })),
+  setRecStatus: (id: number, status: string, note?: string, verified?: string) => call<Rec[]>(`/recommendations/${id}`, json("PATCH", { status, note, verified })),
+  priorities: () => call<Priorities>("/priorities"),
+  consult: () => call<Consult>("/consult"),
+  watchFlags: () => call<WatchFlag[]>("/watch/flags"),
+  watchReadings: () => call<WatchReading[]>("/watch/readings"),
+  logReading: (body: Record<string, unknown>) => call<{ reading: WatchReading; snapshot: WatchSnapshot; check_now: string[] }>("/watch/readings", json("POST", body)),
+  deleteReading: (id: number) => call<void>(`/watch/readings/${id}`, { method: "DELETE" }),
+  watchSignals: () => call<WatchSnapshot>("/watch/signals"),
+  watchSummary: () => call<WatchSummary>("/watch/summary"),
+  ackSignal: (id: number, note = "", recheck_minutes?: number) => call<WatchSnapshot>(`/watch/signals/${id}/ack`, json("POST", { note, recheck_minutes })),
+  watchTrends: () => call<WatchTrends>("/watch/trends"),
+  vaccine: () => call<Vaccine>("/vaccine"),
+  fasttrack: () => call<FastTrack>("/vaccine/fasttrack"),
+  trials: () => call<TrialBrief[]>("/trials"),
+  trialSearch: (term: string, country: string) => call<TrialHit[]>(`/trials/search?term=${encodeURIComponent(term)}&country=${encodeURIComponent(country)}`),
+  trialAdd: (nct_id: string) => call<TrialAssessment>("/trials", json("POST", { nct_id })),
+  trial: (id: number) => call<TrialAssessment>(`/trials/${id}`),
+  trialProfile: (id: number, body: Record<string, string>) => call<TrialAssessment>(`/trials/${id}/profile`, json("PUT", body)),
+  trialRefresh: (id: number) => call<TrialAssessment>(`/trials/${id}/refresh`, { method: "POST" }),
+  trialLog: (id: number, text: string) => call<TrialAssessment>(`/trials/${id}/log`, json("POST", { text })),
+  trialDelete: (id: number) => call<void>(`/trials/${id}`, { method: "DELETE" }),
+  treatmentOptions: () => call<TreatmentOptions>("/vaccine/options"),
+  cohort: () => call<Cohort>("/vaccine/cohort"),
+  cohortStart: (n: number) => call<{ started: boolean }>("/vaccine/cohort/start", json("POST", { n })),
+  cohortStop: () => call<{ stopping: boolean }>("/vaccine/cohort/stop", { method: "POST" }),
+  cohortAudit: (n: number) => call<{ started: boolean }>("/vaccine/cohort/audit", json("POST", { n })),
+  vaxAddVariants: (text: string, dataset = "patient", source = "pasted by you") => call<{ read: number; added: number; problems: string[] }>("/vaccine/variants", json("POST", { text, dataset, source })),
+  vaxSetHla: (text: string, dataset = "patient") => call<{ alleles: string[]; problems: string[] }>("/vaccine/hla", json("POST", { text, dataset })),
+  vaxHlaFromCase: () => call<{ alleles: string[]; problems: string[] }>("/vaccine/hla/from-case", { method: "POST" }),
+  vaxClear: (dataset: string) => call<void>(`/vaccine/data?dataset=${dataset}`, { method: "DELETE" }),
+  vaxSynthetic: () => call<{ variants: number; hla: string[] }>("/vaccine/synthetic", { method: "POST" }),
+  vaxFetchRefs: (dataset = "patient") => call<Record<string, string>>("/vaccine/references/fetch", json("POST", { dataset })),
+  vaxRun: (dataset: string) => call<{ queued: boolean }>("/vaccine/run", json("POST", { dataset })),
+  vaxVerify: (id: number) => call<{ ok: boolean; stored: string; replayed: string; detail: string }>(`/vaccine/runs/${id}/verify`, { method: "POST" }),
+  vaxEvals: (board: boolean) => call<{ queued: boolean }>("/vaccine/evals", json("POST", { board })),
+  consultText: () => call<{ text: string }>("/consult/text"),
+  saveConsultItem: (key: string, body: { asked?: boolean; answer?: string }) => call<{ ok: boolean }>(`/consult/items/${key}`, json("PUT", body)),
+  saveConsultAdvice: (advice: string) => call<{ ok: boolean }>("/consult/advice", json("PUT", { advice })),
+  finishConsult: () => call<{ saved: boolean; recommendations: number; event: boolean }>("/consult/finish", { method: "POST" }),
+  answerQuestion: (id: string, value: string, detail = "") =>
+    call<{ ok: boolean; alert: { level: string; message: string } | null }>(`/priorities/questions/${id}`, json("POST", { value, detail })),
   deleteRecommendation: (id: number) => call<void>(`/recommendations/${id}`, { method: "DELETE" }),
   rebuildRecommendations: () => call<{ queued: number }>("/recommendations/rebuild", { method: "POST" }),
   advisors: () => call<{ packs: PackInfo[]; problems: { file: string; problem: string }[] }>("/advisors"),

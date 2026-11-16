@@ -7,7 +7,7 @@ you. Improvements are plain arithmetic over your own check-ins and ticks, so the
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -289,7 +289,7 @@ def _avg(values: list[float]) -> float | None:
 def _adherence(habits: list[Habit], logs: dict[int, set[str]], start: date, end: date) -> float | None:
     expected = done = 0
     for h in habits:
-        created = h.created_at.date()
+        created = h.created_at.replace(tzinfo=timezone.utc).astimezone().date() if h.created_at.tzinfo is None else h.created_at.astimezone().date()
         for i in range((end - start).days + 1):
             d = start + timedelta(days=i)
             if d < created or d > end:

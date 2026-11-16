@@ -6,14 +6,38 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Job, Recommendation
-from app.services import advisors, jobs, nextsteps, recommendations
+from app.services import advisors, jobs, nextsteps, priorities, recommendations
 
 router = APIRouter(prefix="/api")
+
+
+# ---- what to settle first with the care team ----------------------------------------------------
+@router.get("/priorities")
+def get_priorities(db: Session = Depends(get_db)) -> dict:
+    """Built from the latest scan by code, not the model. Also records the tracks' items as open, app-suggested items."""
+    priorities.sync(db)
+    return {"tracks": priorities.tracks(db), "questions": priorities.questions(db), "message": priorities.message(db)}
+
+
+class AnswerIn(BaseModel):
+    value: str
+    detail: str = ""
+
+
+@router.post("/priorities/questions/{qid}")
+def answer_question(qid: str, body: AnswerIn, db: Session = Depends(get_db)) -> dict:
+    try:
+        return priorities.answer(db, qid, body.value, body.detail)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
 
 
 # ---- do-next list -----------------------------------------------------------------------------
 @router.get("/nextsteps")
 def get_next_steps(db: Session = Depends(get_db)) -> dict:
+    priorities.sync(db)
     items = nextsteps.do_next(db)
     return {"do_next": items, "counts": {
         "open_recommendations": sum(i["kind"] == "recommendation" for i in items),
@@ -50,13 +74,14 @@ def add_recommendation(body: RecIn, db: Session = Depends(get_db)) -> list[dict]
 class StatusIn(BaseModel):
     status: str
     note: str | None = None
+    verified: str | None = None
 
 
 @router.patch("/recommendations/{rec_id}")
 def update_recommendation(rec_id: int, body: StatusIn, db: Session = Depends(get_db)) -> list[dict]:
     if body.status not in ("open", "done", "dismissed"):
         raise HTTPException(422, "Status must be open, done or dismissed.")
-    if recommendations.set_status(db, rec_id, body.status, body.note) is None:
+    if recommendations.set_status(db, rec_id, body.status, body.note, body.verified) is None:
         raise HTTPException(404, "Not found.")
     return recommendations.listing(db)
 

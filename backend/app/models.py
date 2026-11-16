@@ -169,7 +169,9 @@ class Recommendation(Base):
     certainty: Mapped[str] = mapped_column(String(20), default="advised")  # advised | planned | suggested | considered
     status: Mapped[str] = mapped_column(String(20), default="open", index=True)  # open | done | dismissed
     note: Mapped[str] = mapped_column(Text, default="")
-    source: Mapped[str] = mapped_column(String(20), default="document")  # document | you
+    source: Mapped[str] = mapped_column(String(20), default="document")  # document | you | app (a question the app suggests asking)
+    urgency: Mapped[str] = mapped_column(String(10), default="")  # "" | urgent | high (only for app-suggested items)
+    verified: Mapped[str] = mapped_column(String(10), default="")  # "" | not_done: you confirmed an old plan was never carried out
     document_id: Mapped[int | None] = mapped_column(ForeignKey("cc_document.id", ondelete="SET NULL"), nullable=True)
     quote: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -192,6 +194,136 @@ class Plan(Base):
     used_fallback: Mapped[bool] = mapped_column(default=False)
     model: Mapped[str] = mapped_column(String(100), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class SomaticVariant(Base):
+    """One tumour mutation from a sequencing report or file. `dataset` keeps synthetic demo data strictly apart from the patient's."""
+
+    __tablename__ = "cc_variant"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    dataset: Mapped[str] = mapped_column(String(12), default="patient", index=True)  # patient | synthetic
+    gene: Mapped[str] = mapped_column(String(40))
+    protein_change: Mapped[str] = mapped_column(String(60))  # e.g. G12D, or text such as c.123_124del / fs
+    consequence: Mapped[str] = mapped_column(String(60), default="")
+    vaf: Mapped[float | None] = mapped_column(Float, nullable=True)  # tumour variant allele fraction 0-1
+    depth: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    normal_vaf: Mapped[float | None] = mapped_column(Float, nullable=True)  # in matched normal, if sequenced
+    tpm: Mapped[float | None] = mapped_column(Float, nullable=True)  # tumour RNA expression of the gene
+    wt_window: Mapped[str] = mapped_column(Text, default="")  # reference protein stretch (optional)
+    wt_start: Mapped[int] = mapped_column(Integer, default=1)  # 1-based position of wt_window[0]
+    source: Mapped[str] = mapped_column(String(200), default="")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class HlaAllele(Base):
+    __tablename__ = "cc_hla"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    dataset: Mapped[str] = mapped_column(String(12), default="patient", index=True)
+    allele: Mapped[str] = mapped_column(String(30))  # HLA-A*02:01
+    source: Mapped[str] = mapped_column(String(200), default="")
+
+
+class RefSeq(Base):
+    """A reference protein sequence looked up once (only gene symbols leave the machine) and kept for reproducibility."""
+
+    __tablename__ = "cc_refseq"
+
+    gene: Mapped[str] = mapped_column(String(40), primary_key=True)
+    sequence: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(100), default="")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Trial(Base):
+    """A clinical trial the family is considering: the registry record as fetched, the family's answers, and an enquiry log."""
+
+    __tablename__ = "cc_trial"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nct_id: Mapped[str] = mapped_column(String(16), unique=True)
+    title: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(40), default="")
+    data: Mapped[dict] = mapped_column(JSON, default=dict)  # registry fields: criteria text, contacts, locations, dates
+    profile: Mapped[dict] = mapped_column(JSON, default=dict)  # answers only the family or doctors can give (ECOG, treatment lines, ...)
+    log: Mapped[list] = mapped_column(JSON, default=list)  # enquiries sent / replies received / registry changes
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class VaccineRun(Base):
+    """One execution of the candidate-selection pipeline, with everything needed to verify and replay it."""
+
+    __tablename__ = "cc_vaccine_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    dataset: Mapped[str] = mapped_column(String(12), default="patient")
+    status: Mapped[str] = mapped_column(String(12), default="done")  # done | blocked | failed
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    input_hash: Mapped[str] = mapped_column(String(64), default="")
+    result_hash: Mapped[str] = mapped_column(String(64), default="")
+    predictor: Mapped[str] = mapped_column(String(120), default="")
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Reading(Base):
+    """One self-report at one moment (log as often as you like). Every number is optional: blank means not measured."""
+
+    __tablename__ = "cc_reading"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)  # local calendar day
+    energy: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1-5
+    mood: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    appetite: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pain: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 0-10
+    temp_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pulse: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    spo2: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bp_sys: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bp_dia: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    flags: Mapped[list] = mapped_column(JSON, default=list)  # quick symptom tags
+    note: Mapped[str] = mapped_column(Text, default="")
+
+
+class Signal(Base):
+    """An alert or recovery sign found by the watch rules. Re-evaluated whenever data changes; it resolves itself when the cause ends."""
+
+    __tablename__ = "cc_signal"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(80), unique=True)
+    level: Mapped[str] = mapped_column(String(12))  # emergency | urgent | watch | recovering | info
+    domain: Mapped[str] = mapped_column(String(12))  # symptom | vitals | medicine | diet | routine | mind | report | trend
+    title: Mapped[str] = mapped_column(String(300))
+    why: Mapped[str] = mapped_column(Text, default="")
+    actions: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(10), default="open", index=True)  # open | ack | resolved
+    ack_level: Mapped[str] = mapped_column(String(12), default="")
+    ack_note: Mapped[str] = mapped_column(Text, default="")
+    recheck_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Visit(Base):
+    """One doctor visit: which checklist questions were asked, the answers you were given, and the advice to follow up.
+    Saving it adds a dated consultation to the journey and turns each advice line into a tracked recommendation."""
+
+    __tablename__ = "cc_visit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    day: Mapped[str] = mapped_column(String(10), unique=True)
+    answers: Mapped[dict] = mapped_column(JSON, default=dict)  # question key -> {"asked": bool, "answer": str}
+    advice: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(10), default="draft")  # draft | saved
+    event_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class Habit(Base):

@@ -9,21 +9,28 @@ const FILTERS: { id: "open" | "done" | "dismissed" | "all"; label: string }[] = 
 function RecCard({ r, onChange }: { r: Rec; onChange: (recs: Rec[]) => void }) {
   const [note, setNote] = useState(r.note);
   const [editing, setEditing] = useState(false);
-  const act = (status: string, withNote?: string) => api.setRecStatus(r.id, status, withNote).then(onChange);
+  const act = (status: string, withNote?: string, verified?: string) => api.setRecStatus(r.id, status, withNote, verified).then(onChange);
+  const verify = r.status === "open" && r.nature === "verify";
   return (
     <li className={`rec-card ${r.status}`}>
       <div className="rec-top">
         <div className="grow">
+          {r.urgency && <span className={`badge ${r.urgency === "urgent" ? "attention" : "partial"}`}>{r.urgency === "urgent" ? "Urgent" : "High priority"}</span>}
+          {r.nature === "conditional" && r.status === "open" && <span className="badge">Only if…</span>}
+          {verify && <span className="badge">Check if it was done</span>}
+          {r.verified === "not_done" && r.status === "open" && <span className="badge partial">Confirmed not done</span>}{" "}
           <strong>{r.text}</strong>
           <div className="muted small">
-            {r.advisor || "Advisor not named"} · {r.rec_date || "date unknown"} · <span className="badge">{r.category.replace("_", " ")}</span>{" "}
-            <span className="badge">{r.certainty}</span>
+            {r.source === "app" ? "Suggested by this app — a question for the care team, not a medical order" : r.advisor || "Advisor not named"} · {r.rec_date || "date unknown"} · <span className="badge">{r.category.replace("_", " ")}</span>{" "}
+            {r.source !== "app" && <span className="badge">{r.certainty}</span>}
             {r.timing && <> · timing: {r.timing}</>}
             {r.target_date && <> · by {r.target_date}</>}
           </div>
         </div>
         {r.status !== "open" && <span className={`badge ${r.status === "done" ? "ready" : ""}`}>{r.status === "done" ? "Done" : "Not relevant"}</span>}
       </div>
+      {verify && <div className="hint">An older plan is not proof that it happened. Check the operation note, discharge summary or report, then answer below.</div>}
+      {r.nature === "conditional" && r.status === "open" && <div className="hint">This applies only if the condition in the advice is met. Ask the team whether it is.</div>}
       {r.addressed_by.length > 0 && r.status === "open" && (
         <div className="hint">
           May already be done: {r.addressed_by.map((a) => `${a.title} on ${a.date}`).join("; ")}.{" "}
@@ -38,7 +45,8 @@ function RecCard({ r, onChange }: { r: Rec; onChange: (recs: Rec[]) => void }) {
       <div className="row wrap" style={{ justifyContent: "flex-start", marginTop: 6 }}>
         {r.status === "open" ? (
           <>
-            <button className="small-btn primary" onClick={() => act("done")}>Done</button>
+            <button className="small-btn primary" onClick={() => act("done")}>{verify ? "Yes, it was done" : "Done"}</button>
+            {verify && <button className="small-btn" onClick={() => act("open", "Confirmed by you as not carried out.", "not_done")}>No, it was not done</button>}
             <button className="small-btn" onClick={() => act("dismissed")} title="No longer relevant or the team decided otherwise">Not relevant</button>
           </>
         ) : (

@@ -145,6 +145,11 @@ _PROMISE = re.compile(
     r"\b(you will (definitely |certainly )?(be cured|recover|survive|die|live)|guaranteed (cure|recovery|survival)|\d+\s*(months?|years?|weeks?) (left )?to live|will (definitely|certainly) (cure|work))\b",
     re.I,
 )
+_VACCINE_CLAIM = re.compile(
+    r"\b((this|the|these|each) (vaccine|peptide|candidate|antigen|construct)s? (is|are|will be|should be) (safe|effective|proven|ready|suitable)|"
+    r"(safe and effective|proven to (work|shrink|prevent)|will (shrink|prevent|stop|eliminate|destroy) (the )?(tumou?r|cancer|recurrence)|take this vaccine|make (the|this|your own) vaccine at home)\b)",
+    re.I,
+)
 
 
 def lint(answer: str) -> list[str]:
@@ -165,6 +170,7 @@ def lint(answer: str) -> list[str]:
     hit(_DOSE, "dosing-instruction", allow_negation=True)
     hit(_DIAGNOSE, "diagnosis-claim", allow_negation=False)
     hit(_PROMISE, "outcome-promise", allow_negation=False)
+    hit(_VACCINE_CLAIM, "vaccine-efficacy-claim", allow_negation=False)
     return violations
 
 

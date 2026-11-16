@@ -1,0 +1,4 @@
+# Optional: the real binding/presentation predictor for the Vaccine workbench (pulls in PyTorch, several hundred MB).
+# After installing, fetch its models once:  mhcflurry-downloads fetch models_class1_presentation
+# Without it the workbench refuses to select candidates; it never substitutes a made-up score.
+mhcflurry>=2.3,<3

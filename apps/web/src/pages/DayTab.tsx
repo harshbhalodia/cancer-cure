@@ -1,84 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import { api, type CheckIn, type HabitItem, type TodayView } from "../api";
+import { useCallback, useEffect, useState } from "react";
+import { api, type HabitItem, type TodayView } from "../api";
+import LogCard from "./LogCard";
 
-const SCALES: { key: "energy" | "mood" | "appetite"; label: string; faces: string[] }[] = [
-  { key: "energy", label: "Energy", faces: ["🪫", "😴", "😐", "🙂", "⚡"] },
-  { key: "mood", label: "Mood", faces: ["😞", "😕", "😐", "🙂", "😄"] },
-  { key: "appetite", label: "Appetite", faces: ["🚫", "🥣", "🍽️", "😋", "🍛"] },
-];
-const LEVEL = ["Very low", "Low", "Okay", "Good", "Very good"];
 const WHEN_LABEL: Record<string, string> = { morning: "Morning", midday: "Midday", evening: "Evening", bedtime: "Bedtime", anytime: "Any time" };
-
-function Scale({ label, faces, value, onPick }: { label: string; faces: string[]; value: number | null; onPick: (v: number | null) => void }) {
-  return (
-    <div className="scale">
-      <span className="scale-label">{label}</span>
-      <div className="scale-btns" role="radiogroup" aria-label={label}>
-        {faces.map((f, i) => (
-          <button key={i} role="radio" aria-checked={value === i + 1} title={`${label}: ${LEVEL[i]}`} className={value === i + 1 ? "face on" : "face"} onClick={() => onPick(value === i + 1 ? null : i + 1)}>
-            {f}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CheckInCard({ view, onSaved }: { view: TodayView; onSaved: () => void }) {
-  const [ci, setCi] = useState<Partial<CheckIn>>(view.checkin ?? {});
-  const [alert, setAlert] = useState<{ level: string; message: string } | null>(null);
-  const [state, setState] = useState<"" | "saving" | "saved" | "error">("");
-  const timer = useRef<number | undefined>(undefined);
-
-  const save = useCallback(async (patch: Partial<CheckIn>) => {
-    setCi((c) => ({ ...c, ...patch }));
-    setState("saving");
-    try {
-      const r = await api.saveCheckin(patch);
-      setAlert(r.alert);
-      setState("saved");
-      onSaved();
-      window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => setState(""), 2500);
-    } catch {
-      setState("error");
-    }
-  }, [onSaved]);
-
-  const num = (v: string) => (v.trim() === "" ? null : Number(v));
-  return (
-    <div className="card">
-      <div className="card-head">
-        <h3>How are you today?</h3>
-        <span className="muted small">{state === "saving" ? "Saving…" : state === "saved" ? "Saved ✓" : state === "error" ? "Could not save" : "Saves as you go · skip anything you like"}</span>
-      </div>
-      {alert && <div className={alert.level === "emergency" ? "alert emergency" : "alert urgent"}><ReactMarkdown>{alert.message}</ReactMarkdown></div>}
-      {SCALES.map((s) => <Scale key={s.key} label={s.label} faces={s.faces} value={ci[s.key] ?? null} onPick={(v) => save({ [s.key]: v })} />)}
-      <div className="scale">
-        <span className="scale-label">Pain</span>
-        <div className="scale-btns pain" role="radiogroup" aria-label="Pain from 0 to 10">
-          {Array.from({ length: 11 }, (_, n) => (
-            <button key={n} role="radio" aria-checked={ci.pain === n} title={n === 0 ? "No pain" : n === 10 ? "Worst pain" : `Pain ${n}`} className={ci.pain === n ? `pain-btn on p${Math.min(3, Math.floor(n / 3))}` : "pain-btn"} onClick={() => save({ pain: ci.pain === n ? null : n })}>
-              {n}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="row" style={{ justifyContent: "flex-start", gap: 12, margin: "10px 0 6px" }}>
-        <label className="mini-field">Sleep (hours)
-          <input type="number" min={0} max={24} step={0.5} defaultValue={ci.sleep_hours ?? ""} onBlur={(e) => num(e.target.value) !== (ci.sleep_hours ?? null) && save({ sleep_hours: num(e.target.value) })} />
-        </label>
-        <label className="mini-field">Weight (kg)
-          <input type="number" min={20} max={300} step={0.1} defaultValue={ci.weight_kg ?? ""} onBlur={(e) => num(e.target.value) !== (ci.weight_kg ?? null) && save({ weight_kg: num(e.target.value) })} />
-        </label>
-      </div>
-      <label className="mini-field wide">Symptoms or anything new
-        <textarea rows={2} defaultValue={ci.symptoms ?? ""} placeholder="e.g. mouth sore, trouble swallowing, swelling…" onBlur={(e) => e.target.value !== (ci.symptoms ?? "") && save({ symptoms: e.target.value })} />
-      </label>
-    </div>
-  );
-}
 
 function MindCard({ view, onSaved }: { view: TodayView; onSaved: () => void }) {
   const [vision, setVision] = useState(view.vision);
@@ -195,7 +119,7 @@ export default function DayTab({ onOpenStrategy }: { onOpenStrategy: () => void 
         </div>
       )}
       <MindCard view={view} onSaved={load} />
-      <CheckInCard view={view} onSaved={load} />
+      <LogCard onLogged={load} />
       <SuggestedMeds items={view.suggested_medicines} onChanged={load} />
 
       {view.habits.length === 0 ? (

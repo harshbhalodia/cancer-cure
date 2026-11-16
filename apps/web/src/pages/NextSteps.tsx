@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type Decision, type Readiness, type Requirement } from "../api";
 import PlanTab from "./PlanTab";
 import RecsTab from "./RecsTab";
+import VisitTab from "./VisitTab";
 
 const STATUS_TEXT: Record<string, string> = { ready: "Ready", partial: "Partly ready", blocked: "Blocked" };
 
@@ -107,7 +108,7 @@ function ChecksTab({ version }: { version: number }) {
   );
 }
 
-type Tab = "plan" | "recs" | "checks";
+type Tab = "plan" | "visit" | "recs" | "checks";
 
 export default function NextSteps({ version }: { version: number }) {
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("cc-next-tab") as Tab) || "plan");
@@ -129,12 +130,14 @@ export default function NextSteps({ version }: { version: number }) {
       </header>
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === "plan"} className={tab === "plan" ? "tab on" : "tab"} onClick={() => choose("plan")}>Plan</button>
+        <button role="tab" aria-selected={tab === "visit"} className={tab === "visit" ? "tab on" : "tab"} onClick={() => choose("visit")}>Doctor visit</button>
         <button role="tab" aria-selected={tab === "recs"} className={tab === "recs" ? "tab on" : "tab"} onClick={() => choose("recs")}>
           Advisors’ recommendations {openRecs ? <span className="nav-badge neutral">{openRecs}</span> : null}
         </button>
         <button role="tab" aria-selected={tab === "checks"} className={tab === "checks" ? "tab on" : "tab"} onClick={() => choose("checks")}>Checks</button>
       </div>
       {tab === "plan" && <PlanTab version={version + bump} onChanged={() => setBump((b) => b + 1)} />}
+      {tab === "visit" && <VisitTab />}
       {tab === "recs" && <RecsTab version={version} onChanged={() => setBump((b) => b + 1)} />}
       {tab === "checks" && <ChecksTab version={version} />}
     </section>

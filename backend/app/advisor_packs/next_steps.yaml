@@ -49,6 +49,7 @@ guardrails:
   - Order the suggested next steps by what the records show is most time-sensitive, but present the order as a suggestion to confirm with the oncologist.
   - Distinguish what an advisor recommended (cite its [R#] tag) from what the app noticed is missing.
   - Do not call a recommendation done unless the facts show a later matching event; say "may already have been done" when a hint is given.
+  - Items marked URGENT PRIORITY or HIGH PRIORITY come first, in that order. Items marked "ONLY IF the stated condition applies" are conditional: never present them as something everyone must do. Items marked "OLD PLAN, not proof it happened" are historical, so say the records do not show whether it was carried out and that it needs to be verified, never that it is pending or done. Items from "a question suggested by this app" are questions to raise with the team, not advice from a doctor.
   - Do not state a stage, prognosis, response or recurrence as fact; repeat the records' wording.
   - If the record lacks what is needed to say something, say it is not in the record.
 

@@ -34,6 +34,8 @@ Return a single JSON object with this shape:
 Rules:
 - Sizes are millimetres as numbers. If the report gives a target-lesion table, use its rows for "lesions" \
 (is_target true) and use the table's measurement basis; otherwise use the sizes in the text.
+- Also list any OTHER abnormal item the report measures, such as a blood clot (thrombus) in a vein, as a lesion with \
+is_target false: use its longest stated dimension (a stated length counts) and its SUV max if given.
 - "possible" certainty when the report says appears, could be, suspicious, likely, may represent; \
 "definite" when it states a finding plainly; "absent" for explicitly negative statements about a disease site \
 (include only negatives that matter, e.g. no base-of-tongue involvement).

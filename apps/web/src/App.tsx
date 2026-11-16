@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type Health, type JobsSummary } from "./api";
+import { api, type Health, type JobsSummary, type WatchSummary } from "./api";
 import Ask from "./pages/Ask";
 import CaseFile from "./pages/CaseFile";
 import Documents from "./pages/Documents";
@@ -8,12 +8,14 @@ import NextSteps from "./pages/NextSteps";
 import Progress from "./pages/Progress";
 import Timeline from "./pages/Timeline";
 import Today from "./pages/Today";
+import Vaccine from "./pages/Vaccine";
 
-type Tab = "today" | "ask" | "next" | "progress" | "inbox" | "case" | "documents" | "timeline";
+type Tab = "today" | "ask" | "next" | "progress" | "inbox" | "case" | "documents" | "timeline" | "vaccine";
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "today", label: "Today", icon: "🌿" },
   { id: "ask", label: "Ask", icon: "💬" },
   { id: "next", label: "Next steps", icon: "🧭" },
+  { id: "vaccine", label: "Vaccine", icon: "🧬" },
   { id: "progress", label: "Progress", icon: "📈" },
   { id: "inbox", label: "Inbox", icon: "📥" },
   { id: "case", label: "Case file", icon: "🗂️" },
@@ -30,6 +32,23 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(0);
   const [jobs, setJobs] = useState<JobsSummary | null>(null);
+  const [watchSum, setWatchSum] = useState<WatchSummary | null>(null);
+
+  useEffect(() => {
+    const load = () =>
+      api.watchSummary().then((s) => {
+        setWatchSum(s);
+        const serious = (s.counts.emergency ?? 0) + (s.counts.urgent ?? 0);
+        document.title = serious ? `(${serious}) Alert — Cancer-Cure Companion` : "Cancer-Cure Companion";
+        if (s.fresh.length && serious && typeof Notification !== "undefined" && Notification.permission === "granted") {
+          new Notification(s.headline || "Alert", { body: "Open Cancer-Cure Companion for what to do now." });
+        }
+      }).catch(() => undefined);
+    void load();
+    const t = setInterval(load, 30000);
+    window.addEventListener("cc-watch-changed", load);
+    return () => { clearInterval(t); window.removeEventListener("cc-watch-changed", load); };
+  }, []);
 
   useEffect(() => {
     const load = () => api.health().then(setHealth).catch(() => setHealth(null));
@@ -122,6 +141,7 @@ export default function App() {
             <button key={t.id} className={tab === t.id ? "nav active" : "nav"} onClick={() => setTab(t.id)}>
               <span aria-hidden>{t.icon}</span> {t.label}
               {t.id === "inbox" && jobs && jobs.pending_review + jobs.failed > 0 && <span className="nav-badge">{jobs.pending_review + jobs.failed}</span>}
+              {t.id === "today" && watchSum && (watchSum.counts.emergency ?? 0) + (watchSum.counts.urgent ?? 0) > 0 && <span className="nav-badge pulse">{(watchSum.counts.emergency ?? 0) + (watchSum.counts.urgent ?? 0)}</span>}
             </button>
           ))}
         </nav>
@@ -155,10 +175,16 @@ export default function App() {
         </div>
       </aside>
       <main>
+        {watchSum && tab !== "today" && (watchSum.counts.emergency ?? 0) + (watchSum.counts.urgent ?? 0) > 0 && (
+          <button className={`global-alert ${watchSum.highest}`} onClick={() => setTab("today")}>
+            🚨 {watchSum.headline || "An alert needs your attention"} — tap to see what to do now
+          </button>
+        )}
         {tab === "today" && <Today version={docsVersion} onOpenNext={() => setTab("next")} />}
         {tab === "ask" && <Ask role={role} aiReady={aiOk} onNavigate={setTab} />}
         {tab === "case" && <CaseFile />}
         {tab === "next" && <NextSteps version={docsVersion} />}
+        {tab === "vaccine" && <Vaccine />}
         {tab === "progress" && <Progress version={docsVersion} onOpenDoc={() => setTab("documents")} onOpenInbox={() => setTab("inbox")} />}
         {tab === "inbox" && <Inbox onChanged={() => setDocsVersion((v) => v + 1)} />}
         {tab === "documents" && (

@@ -3,8 +3,8 @@ import { api, type Job, type JobsSummary, type ScanProposal } from "../api";
 import CaseReview, { type CaseReviewData } from "./CaseReview";
 import ScanReview from "./ScanReview";
 
-const KIND_LABEL: Record<string, string> = { ingest: "adding to library", analyze: "reading with the local AI", ocr: "reading the scanned pages", journey: "finding dated events", actions: "finding advisors' recommendations", meds: "finding medicines", plan: "building your plan" };
-const KIND_SHORT: Record<string, string> = { ingest: "add to library", analyze: "analyse", ocr: "read scan", journey: "build journey", actions: "find recommendations", meds: "find medicines", plan: "build plan" };
+const KIND_LABEL: Record<string, string> = { ingest: "adding to library", analyze: "reading with the local AI", ocr: "reading the scanned pages", journey: "finding dated events", actions: "finding advisors' recommendations", meds: "finding medicines", plan: "building your plan", vaccine: "selecting vaccine candidates", vaccine_eval: "running the vaccine evals" };
+const KIND_SHORT: Record<string, string> = { ingest: "add to library", analyze: "analyse", ocr: "read scan", journey: "build journey", actions: "find recommendations", meds: "find medicines", plan: "build plan", vaccine: "select candidates", vaccine_eval: "run evals" };
 
 export default function Inbox({ onChanged }: { onChanged: () => void }) {
   const [jobs, setJobs] = useState<Job[]>([]);

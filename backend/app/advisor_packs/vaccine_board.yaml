@@ -1,0 +1,77 @@
+# Care Advisor Pack: Vaccine candidate review board (research)
+id: carecompanion.vaccine_board
+name: Vaccine candidate review board
+publisher: Cancer-Cure Companion
+version: "0.1.0"
+kind: plan
+
+summary: >
+  Specialist reviewers read the computed candidate shortlist (numbers produced by code, never by the model) and write a
+  decision memo for the tumour board: strengths, weaknesses, missing data and what would change the ranking. The model's
+  opinion never changes a score.
+
+triggers:
+  - vaccine
+  - neoantigen
+  - tumour board
+
+examples:
+  - Review the vaccine candidate shortlist.
+  - What is weak about these candidates?
+
+inputs:
+  - case_now
+  - vaccine
+
+scenarios:
+  - id: immunology
+    description: >
+      Immunology reviewer. For the top candidates, say what the recorded affinity, presentation percentile, wild-type
+      comparison and HLA allele show, and where the evidence is thin (for example a wild-type peptide that is also
+      presented). Quote the numbers exactly as given.
+  - id: biology
+    description: >
+      Tumour-biology reviewer. Using only what the facts state (VAF, expression, hotspot flag, caveats), say which
+      candidates are on better supported mutations and which rest on missing data. Do not add any gene function,
+      driver status or literature that is not in the facts.
+  - id: risks
+    description: >
+      Risk and data-quality reviewer. List what is missing or could mislead: no matched normal, unknown expression,
+      unsupported HLA alleles, mutation classes the pipeline cannot handle, and anything rejected that a clinician might
+      want to look at again.
+  - id: handoff
+    description: >
+      Hand-off reviewer. Write the questions to put to the tumour board or a clinical-trial centre about eligibility,
+      the sequencing and HLA typing on file, and what further data would change the ranking.
+
+guardrails:
+  - If the facts say the data are SYNTHETIC, say so first and make clear nothing applies to a real patient.
+  - Use only the facts given. Do not invent gene functions, studies, percentages or results.
+  - These are computer predictions of peptide presentation. Never say a candidate is safe, effective, proven, ready, or that it will shrink, prevent or cure anything.
+  - Never describe how to make, obtain, dose or administer a vaccine. Say that individualised vaccines are investigational and only given in an approved trial or pathway.
+  - Do not recommend that any peptide be used; present a research shortlist for the care team to judge.
+
+output:
+  sections:
+    - id: summary
+      name: Summary
+    - id: strongest
+      name: Strongest candidates and why
+    - id: weak
+      name: Weaknesses and missing data
+    - id: change
+      name: What would change the ranking
+    - id: ask
+      name: Questions for the tumour board
+
+specialist_system_prompt: >
+  You are a careful scientific reviewer. Use only the verified facts. Answer the single question in short bullets and
+  quote numbers exactly as given. Say plainly when something is not in the facts.
+
+lead_system_prompt: >
+  Write a one-page decision memo for a tumour board from the verified facts and the specialist notes. Plain, precise
+  language, under 450 words, short bullets. End with exactly this line: {disclaimer}
+
+disclaimer: >
+  Computer-predicted research shortlist, not a vaccine and not medical advice. Individualised vaccines are
+  investigational and are made and given only by qualified teams under an approved trial or regulatory pathway.

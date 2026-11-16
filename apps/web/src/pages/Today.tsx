@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { api, type DoNextItem } from "../api";
 import DayTab from "./DayTab";
 import ImprovementsTab from "./ImprovementsTab";
+import { AlertsPanel, useWatch } from "./Alerts";
+import WatchTab from "./WatchTab";
+import { Questions, usePriorities } from "./Priorities";
 import StrategyTab from "./StrategyTab";
 
-type Tab = "day" | "strategy" | "improve";
+type Tab = "day" | "strategy" | "improve" | "watch";
 const SEV_LABEL: Record<string, string> = { attention: "Needs attention", advice: "Advisor advised", question: "To confirm", info: "Note", check: "Missing check" };
 
 function FocusStrip({ version, onOpenNext }: { version: number; onOpenNext: () => void }) {
@@ -35,6 +38,8 @@ export default function Today({ version, onOpenNext }: { version: number; onOpen
   const [bump, setBump] = useState(0);
   const choose = (t: Tab) => { setTab(t); localStorage.setItem("cc-today-tab", t); };
   const date = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  const { data: prio, reload: prioReload } = usePriorities(version + bump);
+  const { snap: watchSnap } = useWatch();
 
   return (
     <section className="page">
@@ -42,12 +47,16 @@ export default function Today({ version, onOpenNext }: { version: number; onOpen
         <h1>Today <span className="muted" style={{ fontSize: "1rem", fontWeight: 400 }}>· {date}</span></h1>
         <p>Your next steps, medicines, food, routine and mind practice in one place, with a one-minute check-in so you can see what is helping.</p>
       </header>
+      <AlertsPanel snap={watchSnap} />
       <FocusStrip version={version + bump} onOpenNext={onOpenNext} />
+      {prio && <Questions questions={prio.questions} onAnswered={() => { void prioReload(); setBump((b) => b + 1); }} />}
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === "day"} className={tab === "day" ? "tab on" : "tab"} onClick={() => choose("day")}>Today</button>
+        <button role="tab" aria-selected={tab === "watch"} className={tab === "watch" ? "tab on" : "tab"} onClick={() => choose("watch")}>Watch &amp; trends</button>
         <button role="tab" aria-selected={tab === "strategy"} className={tab === "strategy" ? "tab on" : "tab"} onClick={() => choose("strategy")}>Strategy &amp; ideas</button>
         <button role="tab" aria-selected={tab === "improve"} className={tab === "improve" ? "tab on" : "tab"} onClick={() => choose("improve")}>Improvements</button>
       </div>
+      {tab === "watch" && <WatchTab />}
       {tab === "day" && <DayTab onOpenStrategy={() => choose("strategy")} />}
       {tab === "strategy" && <StrategyTab onChanged={() => setBump((b) => b + 1)} />}
       {tab === "improve" && <ImprovementsTab version={version + bump} />}

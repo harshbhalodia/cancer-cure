@@ -102,7 +102,7 @@ def test_do_next_is_ranked_by_urgency_and_explains_itself(client, monkeypatch):
     by = {i["title"]: i for i in items}
     assert by["Adjuvant radiotherapy"]["score"] > by["Old dental review"]["score"]
     assert by["PET scan"]["possibly_done"] and by["PET scan"]["score"] < by["Adjuvant radiotherapy"]["score"]
-    assert any("days ago" in n for n in by["Old dental review"]["notes"])
+    assert any("not proof it happened" in n for n in by["Old dental review"]["notes"])
     assert by["Adjuvant radiotherapy"]["evidence"] == []  # advice you typed in has no document to quote
     assert [i["rank"] for i in items] == list(range(1, len(items) + 1))
     assert any(i["kind"] == "check" for i in items)

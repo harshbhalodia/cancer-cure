@@ -7,6 +7,7 @@ later event of the matching kind ("possibly already done").
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -35,7 +36,7 @@ def _now() -> datetime:
 
 def add(db: Session, *, text: str, category: str = "other", advisor: str = "", rec_date: str = "", target_date: str = "",
         timing: str = "", certainty: str = "advised", source: str = "document", document_id: int | None = None,
-        quote: str = "") -> Recommendation | None:
+        quote: str = "", urgency: str = "") -> Recommendation | None:
     text = (text or "").strip()
     if not text:
         return None
@@ -47,7 +48,7 @@ def add(db: Session, *, text: str, category: str = "other", advisor: str = "", r
     rec = Recommendation(
         text=text, category=category, advisor=(advisor or "").strip()[:200], rec_date=rec_date or "", target_date=target_date or "",
         timing=(timing or "").strip()[:120], certainty=certainty if certainty in CERTAINTY else "advised", source=source,
-        document_id=document_id, quote=quote,
+        document_id=document_id, quote=quote, urgency=urgency if urgency in ("urgent", "high") else "",
     )
     db.add(rec)
     db.flush()
@@ -113,13 +114,33 @@ def age_days(rec: Recommendation, today: datetime | None = None) -> int | None:
         return None
 
 
+_CONDITIONAL = re.compile(r"\b(if|in case|should there be|suspicion|suspected|as needed)\b", re.I)
+VERIFY_AFTER_DAYS = 60
+
+
+def nature(rec: Recommendation, age: int | None) -> str:
+    """How to read this item. `conditional`: only applies if something else is true (a hedge in the advice itself).
+    `verify`: an older plan or advice; a plan is not proof it happened, so check the records before treating it as pending.
+    `current`: act on it (or you have confirmed an old plan was never carried out)."""
+    if rec.source == "app":
+        return "current"
+    if _CONDITIONAL.search(f"{rec.text} {rec.quote}") and rec.certainty != "planned":
+        return "conditional"
+    if rec.verified == "not_done":
+        return "current"
+    if rec.source == "document" and age is not None and age > VERIFY_AFTER_DAYS:
+        return "verify"
+    return "current"
+
+
 def as_dict(db: Session, rec: Recommendation, docs: dict[int, str], events: list[tuple[str, str, str]]) -> dict:
+    age = age_days(rec)
     return {
         "id": rec.id, "text": rec.text, "category": rec.category, "advisor": rec.advisor, "rec_date": rec.rec_date,
         "target_date": rec.target_date, "timing": rec.timing, "certainty": rec.certainty, "status": rec.status,
         "note": rec.note, "source": rec.source, "document_id": rec.document_id, "filename": docs.get(rec.document_id, ""),
         "quote": rec.quote, "addressed_by": addressed_by(db, rec, events) if rec.status == "open" else [],
-        "age_days": age_days(rec),
+        "age_days": age, "urgency": rec.urgency, "verified": rec.verified, "nature": nature(rec, age),
     }
 
 
@@ -127,11 +148,11 @@ def listing(db: Session) -> list[dict]:
     docs = {d.id: d.filename for d in db.query(Document).all()}
     events = hint_events(db)
     rows = db.query(Recommendation).all()
-    rows.sort(key=lambda r: (r.status != "open", -(int((r.rec_date or "0000-00-00").replace("-", "")) or 0), r.id))
+    rows.sort(key=lambda r: (r.status != "open", {"urgent": 0, "high": 1}.get(r.urgency, 2), -(int((r.rec_date or "0000-00-00").replace("-", "")) or 0), r.id))
     return [as_dict(db, r, docs, events) for r in rows]
 
 
-def set_status(db: Session, rec_id: int, status: str, note: str | None = None) -> Recommendation | None:
+def set_status(db: Session, rec_id: int, status: str, note: str | None = None, verified: str | None = None) -> Recommendation | None:
     rec = db.get(Recommendation, rec_id)
     if rec is None:
         return None
@@ -139,18 +160,23 @@ def set_status(db: Session, rec_id: int, status: str, note: str | None = None) -
     rec.resolved_at = _now() if status != "open" else None
     if note is not None:
         rec.note = note.strip()
+    if verified is not None:
+        rec.verified = verified if verified == "not_done" else ""
     db.commit()
     return rec
 
 
 def context_lines(db: Session, limit: int = 25) -> str:
     """Open recommendations as compact, citable lines for the assistant and the advisor packs ([R#] tags)."""
-    items = [r for r in listing(db) if r["status"] == "open"][:limit]
+    items = [r for r in listing(db) if r["status"] == "open"]
+    items.sort(key=lambda r: (r["urgency"] != "urgent", r["urgency"] != "high", r["nature"] != "current"))
     lines = []
-    for r in items:
-        who = r["advisor"] or "an advisor"
+    for r in items[:limit]:
+        who = "a question suggested by this app" if r["source"] == "app" else (r["advisor"] or "an advisor")
         hint = f" (a later {r['addressed_by'][0]['title']} on {r['addressed_by'][0]['date']} may mean this was done)" if r["addressed_by"] else ""
         when = r["rec_date"] or "date unknown"
         timing = f", timing: {r['timing']}" if r["timing"] else ""
-        lines.append(f"- [R{r['id']}] {when}, {who} ({r['category']}, {r['certainty']}{timing}): {r['text']}{hint}")
+        flag = {"conditional": " ONLY IF the stated condition applies;", "verify": " OLD PLAN, not proof it happened — check;"}.get(r["nature"], "")
+        urgent = f" {r['urgency'].upper()} PRIORITY;" if r["urgency"] else ""
+        lines.append(f"- [R{r['id']}] {when}, {who} ({r['category']}, {r['certainty']}{timing}){urgent}{flag} {r['text']}{hint}")
     return "\n".join(lines)

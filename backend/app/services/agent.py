@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import AgentRun, Case, ChatMessage, Document, Event
-from app.services import casefile, llm, readiness, recommendations, retrieval, safety, wellness
+from app.services import casefile, llm, readiness, recommendations, retrieval, safety, watch, wellness
 from app.services.prompts import EVENTS_SYSTEM, EXTRACT_KEYS, EXTRACT_SYSTEM, PROMPT_VERSION, ROLE_NOTES, SYSTEM_PROMPT
 
 HISTORY_TURNS = 8
@@ -73,6 +73,7 @@ def build_input(db: Session, user_text: str, passages: list[retrieval.Passage], 
         f"OPEN POINTS THE APP HAS FLAGGED\n{_insight_lines(db)}",
         f"OPEN ADVISOR RECOMMENDATIONS (quoted from the records; cite with the [R#] tag)\n{recommendations.context_lines(db) or '(none recorded)'}",
         f"DAILY LIFE (self-reported by the patient or caregiver in the app; not verified, never a medical record)\n{wellness.context_lines(db) or '(nothing recorded yet)'}",
+        f"ACTIVE ALERTS (found by the app's rules from the patient's own logs; mention the most serious first and repeat its steps, add no steps of your own)\n{watch.context_lines(db) or '(none)'}",
         f"DOCUMENTS ON FILE\n{doc_list}",
         f"RECENT TIMELINE\n{timeline}",
         f"DOCUMENT EXCERPTS\n{_passage_block(passages)}",

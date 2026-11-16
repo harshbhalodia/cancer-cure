@@ -33,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import CaseEntry, ClinicalEvent, Document, Fact, Plan, Recommendation, Scan
-from app.services import casefile, llm, readiness, recommendations, safety, wellness
+from app.services import casefile, llm, readiness, recommendations, safety, watch, wellness
 from app.services.prompts import PROMPT_VERSION
 
 log = logging.getLogger(__name__)
@@ -169,10 +169,21 @@ def scope_wellbeing(db: Session) -> str:
     return wellness.strategy_facts(db)
 
 
+def scope_signals(db: Session) -> str:
+    active_lines = watch.context_lines(db)
+    return active_lines or "(no active alerts from the patient's own logs)"
+
+
+def scope_vaccine(db: Session) -> str:
+    from app.services import vaccine as vaccine_svc  # noqa: PLC0415  (avoids a heavy import at start-up)
+
+    return vaccine_svc.board_facts(db)
+
+
 SCOPES: dict[str, Callable[[Session], str]] = {
     "today": scope_today, "case_now": scope_case_now, "journey": scope_journey, "progress": scope_progress,
     "recommendations": scope_recommendations, "readiness": scope_readiness, "insights": scope_insights,
-    "documents": scope_documents, "wellbeing": scope_wellbeing,
+    "documents": scope_documents, "wellbeing": scope_wellbeing, "signals": scope_signals, "vaccine": scope_vaccine,
 }
 
 
@@ -300,6 +311,7 @@ def fallback_markdown(pack: Pack, facts: dict[str, str]) -> str:
         "case_now": "Where things stand now", "journey": "The journey so far", "progress": "What the scans show",
         "recommendations": "What your advisors recommended (still open)", "readiness": "Checks and gaps",
         "insights": "Points to raise with your care team", "documents": "Documents on file", "wellbeing": "Your daily plan and how it is going",
+        "signals": "Alerts from your own logs", "vaccine": "Candidate vaccine shortlist (research)",
     }
     for scope in pack.inputs:
         body = facts.get(scope, "").strip()
@@ -320,6 +332,10 @@ def fingerprint(db: Session, inputs: list[str] | None = None) -> str:
     parts = [last(CaseEntry), last(ClinicalEvent), last(Recommendation), last(Scan), last(Document), last(Fact), f"{open_recs}/{done_recs}"]
     if inputs and "wellbeing" in inputs:
         parts.append(wellness.fingerprint_part(db))
+    if inputs and "vaccine" in inputs:
+        from app.models import VaccineRun  # noqa: PLC0415
+
+        parts.append(f"vaccine {last(VaccineRun)}")
     return "|".join(parts)
 
 
@@ -347,8 +363,10 @@ def _lead_prompt(pack: Pack) -> str:
 
 
 def run_pack(db: Session, pack: Pack, progress: Callable[[int, int, str], None] | None = None,
-             wait: Callable[[], None] | None = None) -> PackRun:
+             wait: Callable[[], None] | None = None, facts_override: dict[str, str] | None = None) -> PackRun:
     facts = gather(db, pack.inputs)
+    if facts_override:
+        facts.update(facts_override)
     text = facts_text(facts)
     known_ids = {row.id for row in db.query(Recommendation.id)} if "recommendations" in pack.inputs else set()
     total = len(pack.scenarios) + 1
