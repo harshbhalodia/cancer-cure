@@ -31,8 +31,12 @@ export default function TrialsTab() {
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState("");
   const [lines, setLines] = useState("");
+  const [researchNotes, setResearchNotes] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (t) setResearchNotes(Object.fromEntries(["protocol_version", "coordinator_response", "tissue_details", "logistics", "next_followup"].map((key) => [key, t.profile[key] ?? ""])));
+  }, [t]);
 
-  const load = useCallback(() => api.trials().then(setList).catch(() => undefined), []);
+  const load = useCallback(() => api.trials().then(setList).catch((e: Error) => setErr(e.message)), []);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (!t && list.length) void api.trial(list[0].id).then((a) => { setT(a); setLines(a.profile.treatment_lines ?? ""); }); }, [list, t]);
 
@@ -52,8 +56,8 @@ export default function TrialsTab() {
   return (
     <div>
       <div className="card">
-        <div className="card-head"><h3>Check a clinical trial against his records</h3></div>
-        <p className="small">Enter a trial number (for example NCT06868433). The tool reads the official ClinicalTrials.gov text, compares every eligibility line with his documents, and shows what is supported, what needs checking and what is missing. It then drafts the questions to send to the study team. <b>Only the study team can decide eligibility</b>, from the current protocol. Only the trial number leaves this computer.</p>
+        <div className="card-head"><h3>Trial access and evidence workspace</h3></div>
+        <p className="small">Enter a trial number (for example NCT06868433). The tool reads the official registry, prepares questions against this patient's records, and keeps your enquiries and previous registry snapshots. <b>Only the study team can decide eligibility</b>. Checks are incomplete; unknowns and family-reported answers are not verified support. Only the trial number leaves this computer when checking a trial.</p>
         <div className="row wrap" style={{ justifyContent: "flex-start", gap: 8 }}>
           <input value={nct} onChange={(e) => setNct(e.target.value)} placeholder="NCT06868433" aria-label="Trial number" style={{ width: 170 }} />
           <button className="primary" disabled={busy || !nct.trim()} onClick={() => add(nct)}>{busy ? "Working…" : "Check this trial"}</button>
@@ -89,8 +93,28 @@ export default function TrialsTab() {
               <button className="link" onClick={async () => { if (confirm("Remove this trial from the list?")) { await api.trialDelete(t.id); setT(null); await load(); } }}>Remove</button>
             </div>
             <p className="small" style={{ marginTop: 10, marginBottom: 0 }}>
-              Against his records, of {t.criteria.length} eligibility lines: <b style={{ color: COLOR.ok }}>{t.counts.ok} supported</b> · <b style={{ color: COLOR.check }}>{t.counts.check} to check</b> · <b style={{ color: COLOR.missing }}>{t.counts.missing} not on file</b> · {t.counts.routine} routine checks. This is a preparation list, not an eligibility decision.
+              Of {t.criteria.length} eligibility lines: <b style={{ color: COLOR.ok }}>{t.counts.ok} have recorded support</b> · <b style={{ color: COLOR.check }}>{t.counts.check} require confirmation</b> · <b style={{ color: COLOR.missing }}>{t.counts.missing} unknown / not evaluated</b> · {t.counts.routine} study-team checks. This is not an eligibility score.
             </p>
+          </div>
+
+          <div className="card">
+            <h3>Research context, not proof of benefit</h3>
+            <p className="small">{t.summary || "No registry summary is stored. Re-check the registry to load it."}</p>
+            <p className="small"><b>{t.has_results === true ? "Results are posted in the registry; review the official record." : t.has_results === false ? "No results are posted in this registry snapshot." : "Posted-result status has not been checked in this snapshot."}</b> Planned endpoints below are not observed patient outcomes.</p>
+            <ul className="small">{[...(t.outcomes.primaryOutcomes ?? []), ...(t.outcomes.secondaryOutcomes ?? [])].map((o, i) => <li key={i}>{o.measure} {o.timeFrame && <>· {o.timeFrame}</>}</li>)}</ul>
+            <p className="small muted">TMV/tumour-derived vaccines and sequencing-based neoantigen vaccines have different requirements. Do not assume the peptide workbench's sequencing or HLA requirements apply to this trial.</p>
+          </div>
+
+          <div className="card">
+            <h3>Coordinator answers and next follow-up</h3>
+            <p className="small muted">Store what the centre told you. These notes are user-entered and unverified; they do not turn unknown criteria into confirmed eligibility.</p>
+            <label>Current protocol version<input value={researchNotes.protocol_version ?? ""} maxLength={200} onChange={(e) => setResearchNotes({ ...researchNotes, protocol_version: e.target.value })} /></label>
+            <label>Coordinator response<textarea rows={3} maxLength={4000} value={researchNotes.coordinator_response ?? ""} onChange={(e) => setResearchNotes({ ...researchNotes, coordinator_response: e.target.value })} /></label>
+            <label>Tissue availability and centre requirements<textarea rows={2} maxLength={2000} value={researchNotes.tissue_details ?? ""} onChange={(e) => setResearchNotes({ ...researchNotes, tissue_details: e.target.value })} /></label>
+            <label>Travel, remote review, costs and other logistics<textarea rows={2} maxLength={2000} value={researchNotes.logistics ?? ""} onChange={(e) => setResearchNotes({ ...researchNotes, logistics: e.target.value })} /></label>
+            <label>Next follow-up date<input type="date" value={researchNotes.next_followup ?? ""} onChange={(e) => setResearchNotes({ ...researchNotes, next_followup: e.target.value })} /></label>
+            <button disabled={busy} onClick={() => void save(researchNotes)}>Save research notes</button>
+            <button disabled={busy} onClick={() => void run(async () => { await api.addAction({ title: `${t.nct_id}: follow up with the study team`, why: "Ask for the current protocol and clarification of unresolved criteria.", due_date: researchNotes.next_followup || "" }); setCopied("tracked"); })}>{copied === "tracked" ? "Added to Today" : "Track follow-up on Today"}</button>
           </div>
 
           {t.notes.length > 0 && (
@@ -115,7 +139,7 @@ export default function TrialsTab() {
             <p className="muted small">Only you and his doctors can answer these. They update the checks above. Anything you type here is labelled “reported by you” until a document backs it up.</p>
             <Select label="ECOG performance status (his oncologist assigns it)" value={t.profile.ecog ?? ""} onChange={(v) => save({ ecog: v })}
               options={[["", "Not known"], ["0", "0: fully active"], ["1", "1: light work only"], ["2", "2: up and about over half the day"], ["3", "3: mostly in bed or chair"], ["4", "4: bed-bound"]]} />
-            <Select label="Has the surgeon said the current disease can be removed to cure it?" value={t.profile.surgeon_opinion ?? ""} onChange={(v) => save({ surgeon_opinion: v })}
+            <Select label="Has the surgeon assessed salvage surgery as feasible?" value={t.profile.surgeon_opinion ?? ""} onChange={(v) => save({ surgeon_opinion: v })}
               options={[["", "Not asked yet"], ["yes", "Yes"], ["no", "No"]]} />
             <Select label="Blood thinner for the neck-vein clot" value={t.profile.anticoagulant ?? ""} onChange={(v) => save({ anticoagulant: v })}
               options={[["", "Not known"], ["none", "None"], ["lmwh", "Low-molecular-weight heparin injections"], ["other", "Another blood thinner (tablets)"]]} />
@@ -166,6 +190,9 @@ export default function TrialsTab() {
               </div>
             ))}
           </details>
+          {!!t.snapshots.length && <details className="card"><summary>Previous registry snapshots ({t.snapshots.length})</summary>
+            {[...t.snapshots].reverse().map((s, i) => <details key={i}><summary>Fetched {s.fetched_at.slice(0, 10) || "date unknown"} · {s.data.status} · registry updated {s.data.last_update}</summary><pre className="draft">{s.data.eligibility_text}</pre></details>)}
+          </details>}
         </>
       )}
     </div>

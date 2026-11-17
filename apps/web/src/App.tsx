@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type Health, type JobsSummary, type WatchSummary } from "./api";
+import { api, workspaceId, type PatientWorkspace, type Health, type JobsSummary, type WatchSummary } from "./api";
 import Ask from "./pages/Ask";
 import CaseFile from "./pages/CaseFile";
 import Documents from "./pages/Documents";
@@ -9,13 +9,15 @@ import Progress from "./pages/Progress";
 import Timeline from "./pages/Timeline";
 import Today from "./pages/Today";
 import Vaccine from "./pages/Vaccine";
+import Research from "./pages/Research";
 
-type Tab = "today" | "ask" | "next" | "progress" | "inbox" | "case" | "documents" | "timeline" | "vaccine";
+type Tab = "today" | "ask" | "next" | "progress" | "inbox" | "case" | "documents" | "timeline" | "vaccine" | "research";
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "today", label: "Today", icon: "🌿" },
   { id: "ask", label: "Ask", icon: "💬" },
   { id: "next", label: "Next steps", icon: "🧭" },
   { id: "vaccine", label: "Vaccine", icon: "🧬" },
+  { id: "research", label: "Research", icon: "🔎" },
   { id: "progress", label: "Progress", icon: "📈" },
   { id: "inbox", label: "Inbox", icon: "📥" },
   { id: "case", label: "Case file", icon: "🗂️" },
@@ -33,6 +35,30 @@ export default function App() {
   const [uploading, setUploading] = useState(0);
   const [jobs, setJobs] = useState<JobsSummary | null>(null);
   const [watchSum, setWatchSum] = useState<WatchSummary | null>(null);
+  const [workspaces, setWorkspaces] = useState<PatientWorkspace[]>([]);
+  const [newPatient, setNewPatient] = useState("");
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [addingPatient, setAddingPatient] = useState(false);
+
+  useEffect(() => {
+    void api.workspaces().then(setWorkspaces).catch((e: Error) => setWorkspaceError(e.message));
+  }, []);
+  const switchPatient = (id: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("workspace", id);
+    window.location.assign(url.toString());
+  };
+  const addPatient = async () => {
+    setAddingPatient(true);
+    setWorkspaceError("");
+    try {
+      const patient = await api.createWorkspace(newPatient);
+      switchPatient(patient.id);
+    } catch (e) {
+      setWorkspaceError((e as Error).message);
+      setAddingPatient(false);
+    }
+  };
 
   useEffect(() => {
     const load = () =>
@@ -135,6 +161,19 @@ export default function App() {
             <strong>Cancer-Cure</strong>
             <small>Companion</small>
           </div>
+          <div className="patient-picker">
+            <label>Patient workspace
+              <select aria-label="Patient workspace" value={workspaceId} onChange={(e) => switchPatient(e.target.value)}>
+                {workspaces.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
+              </select>
+            </label>
+            <details>
+              <summary>Add a patient</summary>
+              <input aria-label="New patient workspace label" value={newPatient} onChange={(e) => setNewPatient(e.target.value)} placeholder="Private label" maxLength={120} />
+              <button disabled={addingPatient || !newPatient.trim()} onClick={() => void addPatient()}>{addingPatient ? "Creating..." : "Create isolated workspace"}</button>
+            </details>
+            {workspaceError && <div className="alert urgent" role="alert">{workspaceError}</div>}
+          </div>
         </div>
         <nav>
           {TABS.map((t) => (
@@ -185,6 +224,7 @@ export default function App() {
         {tab === "case" && <CaseFile />}
         {tab === "next" && <NextSteps version={docsVersion} />}
         {tab === "vaccine" && <Vaccine />}
+        {tab === "research" && <Research />}
         {tab === "progress" && <Progress version={docsVersion} onOpenDoc={() => setTab("documents")} onOpenInbox={() => setTab("inbox")} />}
         {tab === "inbox" && <Inbox onChanged={() => setDocsVersion((v) => v + 1)} />}
         {tab === "documents" && (

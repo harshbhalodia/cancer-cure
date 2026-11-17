@@ -5,6 +5,7 @@ The cohort runs in its own process (see app/vaccine/cohort.py) so the app stays 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -12,11 +13,16 @@ import time
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_DIR
+from app.config import get_settings
 from app.models import Document
 from app.services import fasttrack, priorities, vaccine
 from app.vaccine import cohort as core
 
 ALIVE_S = 45  # a run whose heartbeat is older than this is treated as not running
+
+
+def _process_env() -> dict[str, str]:
+    return {**os.environ, "CC_DATA_DIR": str(get_settings().data_dir), "CC_INBOX_DIR": str(get_settings().inbox_dir)}
 
 
 def profile_for_case(db: Session) -> tuple[dict, list[str]]:
@@ -65,7 +71,7 @@ def start(db: Session, n: int = 10000, workers: int = 10) -> dict:
     flags = 0x00000008 | 0x00000200 if sys.platform == "win32" else 0  # detached, so it survives an app reload
     log = open(d / "run.log", "ab")  # noqa: SIM115 - handed to the child
     subprocess.Popen([sys.executable, "-m", "app.vaccine.cohort", "run", "--n", str(n), "--workers", str(max(2, min(workers, 24))), "--profile", str(pf)],
-                     stdout=log, stderr=log, creationflags=flags, cwd=str(BACKEND_DIR))
+                     stdout=log, stderr=log, creationflags=flags, cwd=str(BACKEND_DIR), env=_process_env())
     return {"started": True, "n": n}
 
 
@@ -103,7 +109,7 @@ def start_audit(n: int = 60, parallel: int = 2) -> dict:
     flags = 0x00000008 | 0x00000200 if sys.platform == "win32" else 0
     log = open(core.cohort_dir() / "audit.log", "ab")  # noqa: SIM115
     subprocess.Popen([sys.executable, "-m", "app.vaccine.audit", "--n", str(max(10, min(n, 400))), "--parallel", str(max(1, min(parallel, 4)))],
-                     stdout=log, stderr=log, creationflags=flags, cwd=str(BACKEND_DIR))
+                     stdout=log, stderr=log, creationflags=flags, cwd=str(BACKEND_DIR), env=_process_env())
     return {"started": True}
 
 

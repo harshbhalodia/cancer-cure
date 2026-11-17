@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type Progress as ProgressData, type Series } from "../api";
+import { api, workspaceUrl, type Progress as ProgressData, type Series } from "../api";
 
 const COLORS = ["#1f7a6d", "#c2562e", "#4f6bd6", "#a8801a", "#8a4fb0"];
 
@@ -127,7 +127,7 @@ export default function Progress({ version, onOpenDoc, onOpenInbox }: { version:
               ))}
             </ul>
           )}
-          <a href={`/api/documents/${s.document_id}/file`} target="_blank" rel="noreferrer" className="small">Open the report (D{s.document_id})</a>
+          <a href={workspaceUrl(`/api/documents/${s.document_id}/file`)} target="_blank" rel="noreferrer" className="small">Open the report (D{s.document_id})</a>
         </div>
       ))}
     </section>

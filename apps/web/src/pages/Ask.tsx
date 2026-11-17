@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { api, type Message } from "../api";
+import { api, workspaceUrl, type Message } from "../api";
 
 const SUGGESTIONS = [
   "Summarise my latest report in plain language",
@@ -73,7 +73,7 @@ export default function Ask({ role, aiReady, onNavigate }: { role: string; aiRea
               <div className="sources">
                 Sources:{" "}
                 {m.citations.map((c) => (
-                  <a key={`${c.document_id}-${c.page}`} href={`/api/documents/${c.document_id}/file`} target="_blank" rel="noreferrer">
+                  <a key={`${c.document_id}-${c.page}`} href={workspaceUrl(`/api/documents/${c.document_id}/file`)} target="_blank" rel="noreferrer">
                     D{c.document_id} p{c.page} · {c.filename}
                     {c.doc_date ? ` (${c.doc_date})` : ""}
                   </a>

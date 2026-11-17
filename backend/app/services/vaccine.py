@@ -121,7 +121,7 @@ def run(db: Session, dataset: str, params: dict | None = None, progress: Callabl
 def summary(row: VaccineRun | None) -> dict | None:
     if row is None:
         return None
-    r = {k: v for k, v in row.result.items() if k not in ("predictions", "inputs")}
+    r = {k: v for k, v in row.result.items() if k not in ("predictions", "inputs", "research_inputs")}
     return {"id": row.id, "dataset": row.dataset, "created_at": row.created_at.replace(tzinfo=row.created_at.tzinfo or timezone.utc).isoformat(), **r}
 
 

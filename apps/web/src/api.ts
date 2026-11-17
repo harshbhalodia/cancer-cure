@@ -120,7 +120,7 @@ export interface JobsSummary {
 }
 export interface Job {
   id: number;
-  kind: "ingest" | "analyze" | "ocr" | "journey" | "actions" | "plan";
+  kind: "ingest" | "analyze" | "ocr" | "journey" | "actions" | "meds" | "plan" | "vaccine" | "vaccine_eval" | "research_propose" | "research_review" | "research_brief";
   status: "queued" | "running" | "done" | "failed";
   filename: string;
   document_id: number | null;
@@ -371,6 +371,11 @@ export interface VaxRun {
 }
 export interface VaxEval { predictor: string; passed: number; total: number; note: string; checks: { name: string; passed: boolean; detail: string; kind: string }[] }
 export interface VaxData { variants: number; hla: string[]; with_normal: number; with_rna: number; need_reference: string[]; sources: string[] }
+export interface ScenarioProposal { id: string; hypothesis: string; params: Record<string, number | number[]> }
+export interface ResearchAIJob {
+  id: number; kind: string; status: string; error: string;
+  result: { detail?: string; proposals?: ScenarioProposal[]; model?: string; markdown?: string; note?: string };
+}
 export interface CohortView {
   label: string; n: number; strong_p10: number; strong_median: number; strong_p90: number; selected_median: number;
   p_strong_ge: Record<string, number>; p_none: number; tierA_median: number; p_tierA_ge3: number; top_score_median: number; germline_selected_mean: number; median_genes: number;
@@ -407,6 +412,9 @@ export interface TrialAssessment {
   central: { name: string; role: string; phone: string; email: string }[];
   officials: { name: string; affiliation: string; role: string }[];
   sites: { facility: string; city: string; country: string; status: string; contacts: { name: string; role: string; phone: string; email: string }[] }[];
+  summary: string; has_results: boolean | null;
+  outcomes: { primaryOutcomes?: { measure: string; timeFrame?: string }[]; secondaryOutcomes?: { measure: string; timeFrame?: string }[] };
+  snapshots: { fetched_at: string; data: { status: string; last_update: string; eligibility_text: string } }[];
 }
 export interface TrialBrief { id: number; nct_id: string; title: string; status: string; counts: Record<string, number> }
 export interface TrialHit { nct_id: string; title: string; status: string; phase: string; countries: string[] }
@@ -428,8 +436,34 @@ export interface Vaccine {
   eval: VaxEval | null; jobs: { id: number; kind: string; status: string; detail: string; error: string }[];
 }
 
+export const workspaceId = new URLSearchParams(window.location.search).get("workspace") || "primary";
+
+export function workspaceUrl(path: string): string {
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set("workspace", workspaceId);
+  return url.pathname + url.search + url.hash;
+}
+
+export function workspaceKey(key: string): string {
+  return workspaceId === "primary" ? key : `${key}:${workspaceId}`;
+}
+
+export interface PatientWorkspace { id: string; label: string }
+export type ActionStatus = "open" | "contacted" | "awaiting_reply" | "resolved" | "dismissed";
+export type ActionPriority = "urgent" | "high" | "routine";
+export interface CareAction {
+  id: number; title: string; why: string; owner: string; due_date: string; priority: ActionPriority;
+  status: ActionStatus; source_key: string | null; evidence: { kind?: string; document_id?: number; quote?: string; text?: string };
+  answer: string; answer_source: "you" | "clinician" | "coordinator"; overdue: boolean;
+  history: { at: string; changes: Record<string, string>; note: string }[]; updated_at: string;
+}
+export interface ActionSuggestion {
+  source_key: string; title: string; why: string; priority: ActionPriority; evidence: CareAction["evidence"];
+}
+export interface ActionsView { items: CareAction[]; focus: CareAction[]; suggestions: ActionSuggestion[]; note: string }
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`/api${path}`, init);
+  const res = await fetch(workspaceUrl(`/api${path}`), init);
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -449,6 +483,12 @@ const json = (method: string, body: unknown): RequestInit => ({
 });
 
 export const api = {
+  workspaces: () => call<PatientWorkspace[]>("/workspaces"),
+  createWorkspace: (label: string) => call<PatientWorkspace>("/workspaces", json("POST", { label })),
+  actions: () => call<ActionsView>("/actions"),
+  addAction: (body: { title?: string; why?: string; owner?: string; due_date?: string; priority?: ActionPriority; source_key?: string }) => call<CareAction>("/actions", json("POST", body)),
+  updateAction: (id: number, body: Partial<Pick<CareAction, "owner" | "due_date" | "priority" | "status" | "answer" | "answer_source">>) => call<CareAction>(`/actions/${id}`, json("PATCH", body)),
+  visitSummary: () => call<{ text: string }>("/actions/visit-summary"),
   health: () => call<Health>("/health"),
   getCase: () => call<CaseData>("/case"),
   saveCase: (c: CaseData) => call<CaseData>("/case", json("PUT", c)),
@@ -526,7 +566,10 @@ export const api = {
   vaxClear: (dataset: string) => call<void>(`/vaccine/data?dataset=${dataset}`, { method: "DELETE" }),
   vaxSynthetic: () => call<{ variants: number; hla: string[] }>("/vaccine/synthetic", { method: "POST" }),
   vaxFetchRefs: (dataset = "patient") => call<Record<string, string>>("/vaccine/references/fetch", json("POST", { dataset })),
-  vaxRun: (dataset: string) => call<{ queued: boolean }>("/vaccine/run", json("POST", { dataset })),
+  vaxRun: (dataset: string, params?: Record<string, number | number[]>, hypothesis?: string) => call<{ queued: boolean }>("/vaccine/run", json("POST", { dataset, params, hypothesis, save_scenario: !!hypothesis })),
+  vaxGetRun: (id: number) => call<VaxRun>(`/vaccine/runs/${id}`),
+  researchHypotheses: (id: number, queue = false) => call<{ job: ResearchAIJob | null }>(`/research/runs/${id}/hypotheses`, queue ? { method: "POST" } : undefined),
+  researchReview: (id: number, queue = false) => call<{ job: ResearchAIJob | null }>(`/research/experiments/${id}/review`, queue ? { method: "POST" } : undefined),
   vaxVerify: (id: number) => call<{ ok: boolean; stored: string; replayed: string; detail: string }>(`/vaccine/runs/${id}/verify`, { method: "POST" }),
   vaxEvals: (board: boolean) => call<{ queued: boolean }>("/vaccine/evals", json("POST", { board })),
   consultText: () => call<{ text: string }>("/consult/text"),

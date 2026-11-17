@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { api, type Priorities, type PriorityQuestion, type PriorityTrack } from "../api";
+import { api, workspaceUrl, type Priorities, type PriorityQuestion, type PriorityTrack } from "../api";
 
 export function usePriorities(version: number) {
   const [data, setData] = useState<Priorities | null>(null);
@@ -22,7 +22,7 @@ function TrackCard({ t, n }: { t: PriorityTrack; n: number }) {
         {t.go_now && <div className="small go-now">🚨 {t.go_now}</div>}
         {t.evidence.map((e, i) => (
           <div key={i} className="quote">
-            “{e.quote}” — {e.document_id ? <a href={`/api/documents/${e.document_id}/file`} target="_blank" rel="noreferrer">{e.filename || `D${e.document_id}`}</a> : "report"}
+            “{e.quote}” — {e.document_id ? <a href={workspaceUrl(`/api/documents/${e.document_id}/file`)} target="_blank" rel="noreferrer">{e.filename || `D${e.document_id}`}</a> : "report"}
           </div>
         ))}
       </div>

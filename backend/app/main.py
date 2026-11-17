@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.database import SessionLocal, init_db
-from app.routers import api, case_api, consult_api, jobs_api, plan_api, record, trials_api, vaccine_api, watch_api, wellness_api
-from app.services import casefile, jobs, priorities
+from app.routers import api, case_api, consult_api, jobs_api, plan_api, record, trials_api, vaccine_api, watch_api, wellness_api, workspaces_api, actions_api
+from app.services import casefile, jobs, priorities, workspaces
+from app.routers import research_api
 
 
 @asynccontextmanager
@@ -26,6 +28,22 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Cancer-Cure Companion", version="0.1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def patient_workspace(request, call_next):
+    header = request.headers.get("X-CC-Workspace")
+    query = request.query_params.get("workspace")
+    if header and query and header != query:
+        return JSONResponse({"detail": "Conflicting patient workspace selections."}, status_code=400)
+    workspace_id = header or query or "primary"
+    # Validate before the handler; never turn handler errors into workspace fallbacks.
+    known = {w["id"] for w in workspaces.list_workspaces()}
+    if workspace_id not in known:
+        return JSONResponse({"detail": "Patient workspace not found."}, status_code=404)
+    with workspaces.activate(workspace_id):
+        return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins,
@@ -42,3 +60,6 @@ app.include_router(consult_api.router)
 app.include_router(watch_api.router)
 app.include_router(vaccine_api.router)
 app.include_router(trials_api.router)
+app.include_router(workspaces_api.router)
+app.include_router(actions_api.router)
+app.include_router(research_api.router)

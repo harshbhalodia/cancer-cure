@@ -10,7 +10,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.models import Case, ClinicalEvent, Document, DocumentChunk
+from app.models import Case, ClinicalEvent, Document, DocumentChunk, SomaticVariant
 from app.services import casefile, priorities
 
 TREATMENT = ("surgery", "radiotherapy", "chemotherapy", "immunotherapy")
@@ -71,10 +71,9 @@ def _clinical_summary(db: Session) -> list[str]:
         for tr in priorities.tracks(db):
             if tr["id"] in ("vessel", "residual"):
                 lines.append(f"Open finding: {tr['title']}" + (f" ({' '.join(tr['facts'])})" if tr["facts"] else "") + ".")
-    if "panel_pending" in fs:
-        lines.append("Comprehensive sequencing: only a targeted DNA/RNA panel was ordered and its result is not available; no whole-exome/RNA sequencing or HLA typing is on file.")
-    else:
-        lines.append("Whole-exome/RNA sequencing and HLA typing: not on file.")
+    count = db.query(SomaticVariant).filter_by(dataset="patient").count()
+    lines.append(f"Mutation data loaded for research: {count} variant(s); coverage and clinical interpretation require the sequencing report." if count else "Mutation data for research: not on file; this does not establish whether sequencing was performed.")
+    lines.append(f"HLA type in the case file: {values['hla_type']} (verify the source)." if values.get("hla_type") else "HLA type in the case file: not on file.")
     return lines
 
 
@@ -91,9 +90,9 @@ def drafts(db: Session) -> list[dict]:
         {"id": "blocks", "title": "Request to the pathology lab / hospital for tumour blocks and samples", "to": "the pathology laboratory and the treating oncologist",
          "text": ("Subject: Request to release tumour blocks and arrange blood samples for comprehensive profiling\n\n"
                   "We request that the pathology department release (or send to the testing laboratory named by the oncologist) the formalin-fixed paraffin-embedded tumour blocks "
-                  "and associated slides, including the most recent specimen, for whole-exome and RNA sequencing. One diagnostic laboratory has noted that blocks are dispatched "
-                  "within 72 hours of a formal request. Please also advise how a blood sample can be collected for matched-normal DNA and HLA typing (class I, high resolution). "
-                  "Please tell us the block numbers and the date of each specimen.")},
+                  "and associated slides, including the most recent specimen. Please confirm which specimens exist, their dates and preservation, and whether a molecular tumour board "
+                  "or trial centre requires further profiling. Please advise whether matched-normal DNA, tumour RNA and HLA typing are appropriate for the proposed sequencing-based research pathway. "
+                  "Please confirm requirements before arranging tests or releasing tissue.")},
         {"id": "oncologist", "title": "Questions to the treating oncologist this week", "to": "the treating oncologist",
          "text": ("1. Can the molecular tumour board review the case this week, including the open findings in the latest scan?\n"
                   "2. Can whole-exome sequencing (tumour and blood) plus RNA sequencing and HLA typing be ordered now, from the existing blocks, and who will pay for and run it?\n"
@@ -104,8 +103,8 @@ def drafts(db: Session) -> list[dict]:
 
 
 STEPS = [
-    {"when": "Today", "title": "Do not let research delay the urgent medical items", "detail": "The neck-vein finding and the tumour-board review can matter within days. Keep them first; everything below runs in parallel."},
-    {"when": "Today", "title": "Ask for the tumour blocks and a blood sample", "detail": "Blocks already exist (six were received for the PD-L1 test). Comprehensive sequencing can start from them without a new biopsy. Matched-normal blood and HLA typing are one blood draw."},
+    {"when": "Today", "title": "Do not let research delay urgent care", "detail": "Follow up on unresolved findings and symptoms with the treating team. Research enquiries should run alongside necessary care, not replace it."},
+    {"when": "Today", "title": "Confirm tissue availability and required tests", "detail": "Ask the pathology laboratory what specimens exist and the trial centre which preservation, collection timing and tests are required. Do not assume stored blocks are acceptable for every vaccine approach."},
     {"when": "Today", "title": "Ask for comprehensive profiling, not another small panel", "detail": "A targeted panel looks at a few hundred cancer genes for drivers. Neoantigen vaccines use the many other mutations, found by whole-exome sequencing of tumour and blood plus tumour RNA. “No pathogenic variant” on a panel does not mean the tumour has no mutations."},
     {"when": "Today", "title": "Contact trial centres and a tumour board in parallel", "detail": "Send the trial draft to several centres at once. Search ClinicalTrials.gov and India's CTRI for recruiting head-and-neck, “individualized neoantigen” and immunotherapy trials. Eligibility for many trials does not depend on sequencing."},
     {"when": "This week", "title": "Get a second opinion at a centre that runs trials", "detail": "In person or by video, with the PET-CT, pathology and treatment history. Ask about expanded access as well as trials."},
@@ -138,9 +137,9 @@ def encouraging(db: Session) -> list[dict]:
 
 TODAY = [
     {"id": "oncologist", "title": "Message or call the oncologist’s office", "minutes": 10,
-     "why": "Ask for the neck-vein (clot) assessment and a tumour-board review this week. Everything else depends on these two."},
-    {"id": "blocks", "title": "Ask the pathology lab for the tumour blocks, and arrange one blood sample", "minutes": 10,
-     "why": "Whole-exome sequencing and HLA typing can start from blocks that already exist. This is the step that lets a personalised vaccine be designed at all."},
+     "why": "Ask about unresolved findings, the next clinical decision and whether tumour-board or second-opinion review is appropriate."},
+    {"id": "blocks", "title": "Confirm available tumour tissue and research requirements", "minutes": 10,
+     "why": "The pathology laboratory and trial centre must confirm specimen availability, preservation and required tests. Different vaccine pathways have different requirements."},
     {"id": "trial", "title": "Send the trial-screening message to two or three cancer centres", "minutes": 15,
      "why": "Trials are the only route to a personalised vaccine or a new drug. Asking several centres at once saves days."},
 ]

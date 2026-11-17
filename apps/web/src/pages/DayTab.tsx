@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type HabitItem, type TodayView } from "../api";
+import { api, workspaceUrl, type HabitItem, type TodayView } from "../api";
 import LogCard from "./LogCard";
 
 const WHEN_LABEL: Record<string, string> = { morning: "Morning", midday: "Midday", evening: "Evening", bedtime: "Bedtime", anytime: "Any time" };
@@ -48,7 +48,7 @@ function SuggestedMeds({ items, onChanged }: { items: HabitItem[]; onChanged: ()
             <div className="grow">
               <strong>{m.title}</strong> {m.dose && <span className="badge">{m.dose}</span>}
               {m.prescriber && <span className="muted small"> · {m.prescriber}</span>}
-              {m.quote && <div className="quote">“{m.quote}” — {m.document_id ? <a href={`/api/documents/${m.document_id}/file`} target="_blank" rel="noreferrer">{m.filename}</a> : "document"}</div>}
+              {m.quote && <div className="quote">“{m.quote}” — {m.document_id ? <a href={workspaceUrl(`/api/documents/${m.document_id}/file`)} target="_blank" rel="noreferrer">{m.filename}</a> : "document"}</div>}
             </div>
             <button className="small-btn primary" onClick={() => api.patchHabit(m.id, { status: "active" }).then(onChanged)}>I take this</button>
             <button className="small-btn" onClick={() => api.patchHabit(m.id, { status: "dropped" }).then(onChanged)}>Not taking</button>

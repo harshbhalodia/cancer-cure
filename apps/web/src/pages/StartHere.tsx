@@ -1,20 +1,21 @@
 import { useEffect, useState } from "react";
-import { api, type FastTrack } from "../api";
+import { api, workspaceKey, type FastTrack } from "../api";
 
-const DONE_KEY = "cc-vax-today-done";
+const DONE_KEY = workspaceKey("cc-vax-today-done");
 
 function splitSubject(text: string): { subject: string; body: string } {
   const m = text.match(/^Subject:\s*(.+)\n+([\s\S]*)$/);
-  return m ? { subject: m[1], body: m[2] } : { subject: "Urgent request about my father’s cancer care", body: text };
+  return m ? { subject: m[1], body: m[2] } : { subject: "Request about patient care and trial screening", body: text };
 }
 
 export default function StartHere({ onNext }: { onNext: (tab: "options" | "cohort" | "data" | "trials") => void }) {
   const [ft, setFt] = useState<FastTrack | null>(null);
   const [copied, setCopied] = useState("");
   const [open, setOpen] = useState("");
+  const [error, setError] = useState("");
   const [done, setDone] = useState<string[]>(() => JSON.parse(localStorage.getItem(DONE_KEY) ?? "[]"));
-  useEffect(() => { void api.fasttrack().then(setFt).catch(() => undefined); }, []);
-  if (!ft) return <p className="muted">Loading…</p>;
+  useEffect(() => { void api.fasttrack().then(setFt).catch((e: Error) => setError(e.message)); }, []);
+  if (!ft) return error ? <div className="alert urgent" role="alert">{error}</div> : <p className="muted">Loading…</p>;
 
   const draft = (id: string) => ft.drafts.find((d) => d.id === id);
   const copy = (id: string, text: string) => { void navigator.clipboard.writeText(text); setCopied(id); setTimeout(() => setCopied(""), 2000); };
@@ -29,7 +30,7 @@ export default function StartHere({ onNext }: { onNext: (tab: "options" | "cohor
       <div className="card">
         <div className="card-head"><h3>What this page can and cannot do</h3></div>
         <p className="small" style={{ marginBottom: 6 }}>
-          <b>It cannot give or make a vaccine.</b> A personalised vaccine is made for one person by a specialist team inside a clinical trial, and it begins with tests on his tumour and blood. Nobody can shorten that to a day, and anyone who offers one outside a trial or hospital should not be trusted.
+          <b>It cannot give or make a vaccine.</b> Vaccine research and treatment require a qualified team and an approved trial or regulatory pathway. TMV/tumour-derived vaccines and sequencing-based neoantigen vaccines have different tissue and testing requirements; confirm these with the centre.
         </p>
         <p className="small" style={{ marginBottom: 0 }}>
           <b>What it does:</b> it makes the first steps as fast as possible. The three things below are ready to send, and each one can start the clock on tests, trials and a tumour-board review today.
@@ -38,9 +39,9 @@ export default function StartHere({ onNext }: { onNext: (tab: "options" | "cohor
 
       {ft.encouraging.length > 0 && (
         <div className="card" style={{ borderLeft: "4px solid #2e8b57" }}>
-          <div className="card-head"><h3>What is encouraging in his records</h3></div>
+          <div className="card-head"><h3>Favourable findings recorded in reports</h3></div>
           <ul className="small">{ft.encouraging.map((e) => <li key={e.text}>{e.text} <span className="muted">({e.source})</span></li>)}</ul>
-          <p className="small muted" style={{ marginBottom: 0 }}>This is real progress. It does not replace the open questions: a lesion that is smaller but still active, and the clot in the neck vein. Those are what the three steps below are for.</p>
+          <p className="small muted" style={{ marginBottom: 0 }}>These are individual reported findings, not proof of overall response or cure. The oncology team must interpret them alongside the full disease history and unresolved findings.</p>
         </div>
       )}
 
@@ -70,24 +71,24 @@ export default function StartHere({ onNext }: { onNext: (tab: "options" | "cohor
             </div>
           );
         })}
-        <p className="muted small" style={{ marginBottom: 0 }}>The messages are written from his records only. Read them once and correct anything that is wrong before sending. Email and WhatsApp open on your side; nothing is sent from this app.</p>
+        <p className="muted small" style={{ marginBottom: 0 }}>Drafts combine recorded facts with suggested questions. Read and correct them before sharing. Email and WhatsApp open only when you choose; the app does not send messages automatically.</p>
       </div>
 
       <div className="card">
         <div className="card-head"><h3>What happens next</h3></div>
         <ol className="small" style={{ paddingLeft: 20, marginBottom: 6 }}>
-          <li><b>This week:</b> the tumour board decides about the neck clot and the next treatment. A trial centre tells you whether he can be screened and which tests it needs.</li>
+          <li><b>With the treating team:</b> clarify unresolved findings and the next clinical decision. A trial centre can tell you whether screening is feasible and which tests it needs.</li>
           <li><b>When sequencing and HLA results arrive:</b> <button className="link" onClick={() => onNext("data")}>paste them in Data</button>. This tool then ranks which mutations the immune system could recognise, in minutes, and produces a summary for the trial team.</li>
           <li><b>Meanwhile:</b> <button className="link" onClick={() => onNext("trials")}>check a specific trial against his records</button> (for example NCT06868433), <button className="link" onClick={() => onNext("options")}>read the ten treatment options</button> so you can ask informed questions, and <button className="link" onClick={() => onNext("cohort")}>see what the simulation says</button> about which tests matter most.</li>
         </ol>
-        <p className="small" style={{ marginBottom: 0 }}><b>Do not wait on any of this for the neck-vein problem.</b> New breathlessness, chest pain, coughing blood, fainting or sudden neck swelling means emergency care now.</p>
+        <p className="small" style={{ marginBottom: 0 }}><b>Do not delay urgent care for research.</b> New breathlessness, chest pain, significant bleeding, fainting or rapidly worsening neck swelling warrants urgent assessment.</p>
       </div>
 
       <details className="card">
         <summary><b>More detail</b> (what the reports show, the longer plan, cautions)</summary>
         <ul className="small">{ft.findings.map((f) => <li key={f.key}>{f.text} <span className="muted">({f.filename})</span></li>)}</ul>
         <p className="small">
-          The Core Diagnostics file in this app is the <b>PD-L1 test only</b>, and it lists the DNA/RNA panel as “pending”. If you have a separate sequencing report, upload it so it is on file. A small gene panel with no driver variant does <b>not</b> mean the tumour has no mutations a vaccine could use: that needs whole-exome sequencing of tumour and blood, plus RNA and HLA typing. Ask about the uncertain PMS2 result and microsatellite/mismatch-repair status, which can matter for immunotherapy.
+          Upload relevant sequencing and pathology reports if available. A small panel without a driver variant does not establish that no potential neoantigens exist. Comprehensive tumour/normal profiling, RNA and HLA typing may support a sequencing-based research pathway; they are not universal prerequisites for every vaccine trial.
         </p>
         <ol className="small" style={{ paddingLeft: 20 }}>{ft.steps.map((s) => <li key={s.title}><b>{s.when}: {s.title}.</b> {s.detail}</li>)}</ol>
         <ul className="small">{ft.cautions.map((c) => <li key={c}>{c}</li>)}</ul>

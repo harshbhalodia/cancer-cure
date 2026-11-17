@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services import cohort, fasttrack, jobs, options, vaccine
 from app.vaccine import ingest
+from app.vaccine.pipeline import Params
 
 router = APIRouter(prefix="/api/vaccine")
 
@@ -116,6 +117,8 @@ def load_synthetic(db: Session = Depends(get_db)) -> dict:
 class DatasetIn(BaseModel):
     dataset: str = "patient"
     params: dict | None = None
+    hypothesis: str = Field(default="", max_length=2000)
+    save_scenario: bool = False
 
 
 @router.post("/references/fetch")
@@ -126,7 +129,21 @@ def fetch_references(body: DatasetIn, db: Session = Depends(get_db)) -> dict:
 
 @router.post("/run")
 def run_pipeline(body: DatasetIn, db: Session = Depends(get_db)) -> dict:
-    if jobs.enqueue_vaccine(db, _dataset(body.dataset), body.params) is None:
+    try:
+        params = Params.from_dict(body.params).as_dict()
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    dataset = _dataset(body.dataset)
+    if body.save_scenario and not body.hypothesis.strip():
+        raise HTTPException(422, "Enter a hypothesis before saving a scenario.")
+    inputs = vaccine._counts(db, dataset)
+    if not inputs["variants"]:
+        raise HTTPException(422, "No tumour mutations loaded for this dataset. Add results first; synthetic data are never substituted.")
+    if not inputs["hla"]:
+        raise HTTPException(422, "No HLA type loaded for this dataset. Add class I HLA typing first.")
+    scenario = {"hypothesis": body.hypothesis.strip()} if body.save_scenario else None
+    job = jobs.enqueue_vaccine(db, dataset, params, scenario=scenario)
+    if job is None:
         raise HTTPException(409, "A run for this dataset is already in progress.")
     return {"queued": True}
 

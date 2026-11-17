@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type CaseDetail, type CaseFieldDetail, type JourneyItem } from "../api";
+import { api, workspaceUrl, type CaseDetail, type CaseFieldDetail, type JourneyItem } from "../api";
 
 const CATS = ["diagnosis", "biopsy", "surgery", "chemotherapy", "radiotherapy", "immunotherapy", "imaging", "consultation", "lab", "admission", "other"];
 const CAT_ICON: Record<string, string> = {
@@ -78,7 +78,7 @@ function EventRow({ it, reload, undated, sameAs }: { it: JourneyItem; reload: ()
             {it.events!.map((e) => (
               <li key={e.id}>
                 {e.title}{" "}
-                {e.document_id ? <a className="small" href={`/api/documents/${e.document_id}/file`} target="_blank" rel="noreferrer">{e.filename || "report"}</a> : null}
+                {e.document_id ? <a className="small" href={workspaceUrl(`/api/documents/${e.document_id}/file`)} target="_blank" rel="noreferrer">{e.filename || "report"}</a> : null}
                 <button className="small-btn danger" title="Remove" onClick={() => api.deleteEvent(e.id!).then(reload)}>✕</button>
               </li>
             ))}
@@ -109,7 +109,7 @@ function EventRow({ it, reload, undated, sameAs }: { it: JourneyItem; reload: ()
             <strong>{it.title}</strong> <span className="badge">{it.category}</span>
             {it.detail && <div className="muted small">{it.detail}</div>}
             <div className="muted small">
-              {it.document_id ? <a href={`/api/documents/${it.document_id}/file`} target="_blank" rel="noreferrer">{it.filename || `D${it.document_id}`}</a> : "added by you"}
+              {it.document_id ? <a href={workspaceUrl(`/api/documents/${it.document_id}/file`)} target="_blank" rel="noreferrer">{it.filename || `D${it.document_id}`}</a> : "added by you"}
               {it.quote && <span className="quote"> “{it.quote}”</span>}
             </div>
             {sameAs && sameAs.length > 0 && (
@@ -273,7 +273,7 @@ function Field({ f, edit, setEdit, reload }: { f: CaseFieldDetail; edit: string 
         {!cumulative && f.value && (
           <>
             {f.as_of ? `as of ${f.as_of}` : <b className="warn-text">date unknown</b>} ·{" "}
-            {f.document_id ? <a href={`/api/documents/${f.document_id}/file`} target="_blank" rel="noreferrer">from a report</a> : "entered by you"}
+            {f.document_id ? <a href={workspaceUrl(`/api/documents/${f.document_id}/file`)} target="_blank" rel="noreferrer">from a report</a> : "entered by you"}
             {" · "}
           </>
         )}
@@ -304,7 +304,7 @@ function Field({ f, edit, setEdit, reload }: { f: CaseFieldDetail; edit: string 
                     title="When this was true"
                     onChange={(e) => api.setEntryDate(h.id, e.target.value).then(reload)}
                   />{" "}
-                  {h.document_id ? <a href={`/api/documents/${h.document_id}/file`} target="_blank" rel="noreferrer">{h.filename || "report"}</a> : "you"}
+                  {h.document_id ? <a href={workspaceUrl(`/api/documents/${h.document_id}/file`)} target="_blank" rel="noreferrer">{h.filename || "report"}</a> : "you"}
                   {h.is_current && !cumulative && <span className="badge ready">current</span>}
                   {!h.is_current && <span className="badge">older</span>}
                 </div>

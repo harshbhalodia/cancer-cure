@@ -25,6 +25,9 @@ from app.database import SessionLocal
 from app.models import ClinicalEvent, Document, DocumentChunk, Event, Job
 from app.services import advisors, agent, casefile, documents, llm, ocr, recommendations, scan_extract, wellness
 from app.services import vaccine as vaccine_svc
+from app.services import workspaces
+from app.services import research
+from app.services import research_notebook
 
 log = logging.getLogger("cc.jobs")
 
@@ -264,11 +267,13 @@ def _run_actions(db: Session, job: Job) -> None:
     enqueue_meds(db, doc)
 
 
-def enqueue_vaccine(db: Session, dataset: str, params: dict | None = None, kind: str = "vaccine") -> Job | None:
+def enqueue_vaccine(db: Session, dataset: str, params: dict | None = None, kind: str = "vaccine", scenario: dict | None = None) -> Job | None:
     for j in db.query(Job).filter(Job.kind == kind, Job.status.in_(("queued", "running"))):
         if (j.payload or {}).get("dataset") == dataset:
             return None
     job = Job(kind=kind, filename=("Vaccine candidate selection" if kind == "vaccine" else "Vaccine pipeline evals"), payload={"dataset": dataset, "params": params or {}})
+    if scenario:
+        job.payload = {**job.payload, "scenario": scenario}
     db.add(job)
     db.commit()
     return job
@@ -284,6 +289,9 @@ def _run_vaccine(db: Session, job: Job) -> None:
     except vaccine_svc.Blocked as exc:
         raise ValueError(str(exc)) from exc
     job.result = {"run_id": row.id, "selected": len(row.result["selected"]), "hash": row.result_hash[:12]}
+    if job.payload.get("scenario"):
+        snapshot = research.create_experiment(db, row.id, job.payload["scenario"]["hypothesis"])
+        job.result = {**job.result, "experiment_id": snapshot.id}
     db.add(Event(kind="case", title=f"Vaccine candidate shortlist built ({row.dataset})", detail=f"{len(row.result['selected'])} candidate(s)", ref_type="vaccine", ref_id=row.id))
 
 
@@ -295,6 +303,18 @@ def _run_vaccine_eval(db: Session, job: Job) -> None:
     except vaccine_svc.Blocked as exc:
         raise ValueError(str(exc)) from exc
     job.result = {"passed": report["passed"], "total": report["total"]}
+
+
+def _run_research_ai(db: Session, job: Job) -> None:
+    _wait_for_user()
+    job.result = {"detail": "Waiting for the local model; scores and patient inputs will not be changed."}
+    db.commit()
+    if job.kind == "research_propose":
+        job.result = research.draft_scenarios(db, job.payload["source_run_id"])
+    elif job.kind == "research_brief":
+        job.result = research_notebook.build_brief(job.payload)
+    else:
+        job.result = research.review_experiment(db, job.payload["experiment_id"])
 
 
 def _run_plan(db: Session, job: Job) -> None:
@@ -471,7 +491,9 @@ def run_one(db: Session) -> bool:
     job.status, job.started_at, job.attempts, job.error = "running", _now(), job.attempts + 1, ""
     db.commit()
     runner = {"ingest": _run_ingest, "analyze": _run_analyze, "ocr": _run_ocr, "journey": _run_journey,
-              "actions": _run_actions, "meds": _run_meds, "plan": _run_plan, "vaccine": _run_vaccine, "vaccine_eval": _run_vaccine_eval}[job.kind]
+              "actions": _run_actions, "meds": _run_meds, "plan": _run_plan, "vaccine": _run_vaccine, "vaccine_eval": _run_vaccine_eval,
+              "research_propose": _run_research_ai, "research_review": _run_research_ai,
+              "research_brief": _run_research_ai}[job.kind]
     try:
         runner(db, job)
         job.status = "done"
@@ -504,31 +526,48 @@ def reset_stale() -> None:
         db.commit()
 
 
-def _loop() -> None:
+def _prepare_workspace() -> None:
     reset_stale()
-    try:
+    cleanup_staging()
+    with SessionLocal() as db:
+        retry_unreadable(db)
+        for doc in db.query(Document).filter(Document.text_source == "vision_ocr", Document.status == "indexed").all():
+            documents.refresh_metadata(db, doc)
+        db.commit()
+    enqueue_pending_ocr()
+    enqueue_unanalyzed()
+    with SessionLocal() as db:
+        for doc in db.query(Document).filter(Document.status == "indexed").all():
+            enqueue_actions(db, doc)
+            enqueue_meds(db, doc)
+
+
+def _workspace_cycle(workspace_id: str, prepared: set[str], last_scan: dict[str, float], interval: float) -> bool:
+    with workspaces.activate(workspace_id):
+        if workspace_id not in prepared:
+            _prepare_workspace()
+            prepared.add(workspace_id)
+        if time.monotonic() - last_scan.get(workspace_id, 0) >= interval:
+            scan_inbox()
+            last_scan[workspace_id] = time.monotonic()
         with SessionLocal() as db:
-            retry_unreadable(db)
-            for doc in db.query(Document).filter(Document.text_source == "vision_ocr", Document.status == "indexed").all():
-                documents.refresh_metadata(db, doc)  # re-apply the latest classifier to already-read scans
-            db.commit()
-        enqueue_pending_ocr()
-        enqueue_unanalyzed()
-        with SessionLocal() as db:
-            for doc in db.query(Document).filter(Document.status == "indexed").all():
-                enqueue_actions(db, doc)  # documents that predate recommendation tracking
-                enqueue_meds(db, doc)  # and medicine tracking
-    except Exception:
-        log.exception("could not queue pending OCR")
-    last_scan = 0.0
+            return run_one(db)
+
+
+def _loop() -> None:
+    prepared: set[str] = set()
+    last_scan: dict[str, float] = {}
     interval = get_settings().watch_interval_s
     while not _stop.is_set():
         try:
-            if time.monotonic() - last_scan >= interval:
-                scan_inbox()
-                last_scan = time.monotonic()
-            with SessionLocal() as db:
-                busy = run_one(db)
+            busy = False
+            for workspace in workspaces.list_workspaces():
+                if _stop.is_set():
+                    break
+                try:
+                    busy = _workspace_cycle(workspace["id"], prepared, last_scan, interval) or busy
+                except Exception:
+                    log.exception("worker error in workspace %s", workspace["id"])
             if not busy:
                 _stop.wait(1.0)
         except Exception:

@@ -32,7 +32,7 @@ export function CohortTab() {
     <div>
       <div className="card">
         <div className="card-head"><h3>Synthetic cohort: stress-testing the pipeline on thousands of made-up tumours</h3></div>
-        <p className="small">Your father’s sequencing and HLA type do not exist yet. This builds thousands of <b>invented</b> tumours shaped like his situation, runs every one through the same pipeline with the real binding predictor, and shows what to expect and <b>which missing tests matter most</b>, so the right ones are requested first.</p>
+        <p className="small">This builds thousands of <b>invented</b> tumours under explicit assumptions and compares computational candidate yield across data situations. It can explore sensitivity to missing inputs; it cannot establish which tests or treatment this patient needs.</p>
         <p className="small"><b>What it cannot do:</b> it cannot say a vaccine will work, and it cannot say which treatment is better, because every outcome here is produced by a computer on invented mutations. Treatment options are on the next tab and do not come from this.</p>
         <details className="small"><summary>How the case shaped the simulation</summary>
           <ul>{c.situation.map((w) => <li key={w}>{w}</li>)}</ul>
@@ -133,7 +133,7 @@ export function CohortTab() {
           </div>
 
           <div className="card">
-            <div className="card-head"><h3>Where your father sits</h3></div>
+            <div className="card-head"><h3>Patient candidate yield versus simulations</h3></div>
             {c.compare ? (
               <p className="small">With his loaded data ({c.compare.view_label}; {c.compare.mutations} mutations) he has <b>{c.compare.strong_variants}</b> mutations with a strongly presented peptide and a shortlist of {c.compare.selected}. That is higher than {c.compare.percentile}% of {c.compare.basis} (their median: {c.compare.median_similar}).</p>
             ) : (

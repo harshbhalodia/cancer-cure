@@ -2,10 +2,20 @@
 
 A local-first companion that keeps one living **Case File** for a patient: every report, doctor
 advisory, medicine, meal, routine and mindset entry is captured on a timeline, so an AI agent can
-show what is improving and prepare the **next best course of action** for the oncologist
-conversation — until the patient is cured. It never replaces the care team.
+show what is changing and prepare questions for the oncologist conversation. It never replaces
+the care team or promises a cure.
 
 Built stand-alone now; designed to drop into Loonie as the **Health** blueprint later.
+
+### Implemented navigator scope
+
+Each patient now has a separate local database and file workspace; the original case remains
+in place. Today adds persistent, sourced follow-ups and visit-summary preparation. Clinical trials
+retain registry snapshots and coordinator/tissue/logistics notes without deciding eligibility.
+Research stores manually entered, unverified evidence cards and immutable computational experiment
+snapshots; parameter comparisons track data/reference/pipeline provenance separately from parameters.
+These are research organisation tools, not personal outcome predictions, vaccine production or a
+shared clinic service. See [the navigator guide](../README.md#patient-action--research-navigator).
 
 ## 1. Principles
 

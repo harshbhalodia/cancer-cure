@@ -6,6 +6,7 @@ import { AlertsPanel, useWatch } from "./Alerts";
 import WatchTab from "./WatchTab";
 import { Questions, usePriorities } from "./Priorities";
 import StrategyTab from "./StrategyTab";
+import Actions from "./Actions";
 
 type Tab = "day" | "strategy" | "improve" | "watch";
 const SEV_LABEL: Record<string, string> = { attention: "Needs attention", advice: "Advisor advised", question: "To confirm", info: "Note", check: "Missing check" };
@@ -48,6 +49,7 @@ export default function Today({ version, onOpenNext }: { version: number; onOpen
         <p>Your next steps, medicines, food, routine and mind practice in one place, with a one-minute check-in so you can see what is helping.</p>
       </header>
       <AlertsPanel snap={watchSnap} />
+      <Actions version={version + bump} />
       <FocusStrip version={version + bump} onOpenNext={onOpenNext} />
       {prio && <Questions questions={prio.questions} onAnswered={() => { void prioReload(); setBump((b) => b + 1); }} />}
       <div className="tabs" role="tablist">

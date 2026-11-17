@@ -4,7 +4,7 @@ import pytest
 
 from app.database import SessionLocal
 from app.models import HlaAllele, SomaticVariant
-from app.services import safety, vaccine
+from app.services import research, safety, vaccine
 from app.vaccine import dossier, evals, ingest, peptides, pipeline, predictor, synth
 from app.vaccine.pipeline import Blocked, Params
 
@@ -85,6 +85,17 @@ def test_a_tampered_run_cannot_be_replayed_to_the_same_hash(stub):
     assert pipeline.replay(run)["result_hash"] != run["result_hash"]
 
 
+def test_parameter_experiment_provenance_survives_rejecting_all_reference_variants(stub):
+    seq = "MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQVVIDGETCLLDILDTAG"
+    rows = [{"id": 1, "gene": "KRAS", "protein_change": "G12D", "vaf": 0.1, "depth": 100, "normal_vaf": 0.0, "tpm": 10}]
+    baseline = pipeline.execute(rows, ["HLA-A*02:01"], Params(min_vaf=0.05), stub, ref=lambda gene: (seq, "synthetic-reference"))
+    strict = pipeline.execute(rows, ["HLA-A*02:01"], Params(min_vaf=0.2), stub, ref=lambda gene: (seq, "synthetic-reference"))
+    changed_ref = pipeline.execute(rows, ["HLA-A*02:01"], Params(min_vaf=0.2), stub, ref=lambda gene: (seq, "different-reference"))
+    assert baseline["refs"] and not strict["refs"]
+    assert research._comparison_provenance(baseline)[0] == research._comparison_provenance(strict)[0] != ""
+    assert research._comparison_provenance(strict)[0] != research._comparison_provenance(changed_ref)[0]
+
+
 def test_candidates_carry_their_reasons_and_caveats(stub):
     rows, alleles, _ = evals._rows()
     for r in rows:
@@ -102,6 +113,14 @@ def test_unsupported_alleles_are_reported_not_silently_used(stub):
     assert run["alleles_unsupported"] == ["HLA-Z*01:01"] and any("does not support" in w for w in run["warnings"])
     with pytest.raises(Blocked):
         pipeline.execute(rows, ["HLA-Z*01:01"], Params(), stub)
+
+
+def test_experiment_parameters_are_validated_before_queueing(client):
+    for params in ({"n_select": -1}, {"n_select": 1.5}, {"min_vaf": 2}, {"max_pres_pct": 0}, {"unknown_parameter": 1}, {"min_tpm": True}):
+        assert client.post("/api/vaccine/run", json={"params": params}).status_code == 422
+    assert client.get("/api/vaccine").json()["jobs"] == []
+    client.post("/api/vaccine/synthetic")
+    assert client.post("/api/vaccine/run", json={"dataset": "synthetic", "params": {"min_vaf": .2, "n_select": 8}}).status_code == 200
 
 
 # ---------------------------------------------------------------- the app around it
@@ -204,12 +223,37 @@ def test_api_flow_paste_run_verify_and_download(client, stub):
 
 def test_a_run_with_missing_inputs_fails_with_a_clear_message(client, stub):
     from app.models import Job
-    from app.services import jobs
-    client.post("/api/vaccine/run", json={"dataset": "patient"})
+    client.post("/api/vaccine/synthetic")
+    response = client.post("/api/vaccine/run", json={"dataset": "patient"})
+    assert response.status_code == 422 and "No tumour mutations" in response.json()["detail"]
+    client.post("/api/vaccine/variants", json={"text": "gene\tprotein_change\nKRAS\tG12D\n"})
+    response = client.post("/api/vaccine/run", json={"dataset": "patient"})
+    assert response.status_code == 422 and "HLA type" in response.json()["detail"]
     with SessionLocal() as db:
-        jobs.run_pending(db)
-        j = db.query(Job).filter_by(kind="vaccine").one()
-        assert j.status == "failed" and "No tumour mutations" in j.error
+        assert db.query(Job).filter_by(kind="vaccine").count() == 0
+
+
+def test_parameter_runs_create_distinct_scenario_snapshots_and_keep_inputs(client, stub):
+    from app.services import jobs
+
+    client.post("/api/vaccine/synthetic")
+    assert client.post("/api/vaccine/run", json={"dataset": "synthetic", "save_scenario": True}).status_code == 422
+    for count in (12, 1):
+        response = client.post("/api/vaccine/run", json={
+            "dataset": "synthetic", "save_scenario": True, "hypothesis": "Synthetic selection-count experiment",
+            "params": {"n_select": count},
+        })
+        assert response.status_code == 200
+        with SessionLocal() as db:
+            jobs.run_pending(db)
+    snapshots = client.get("/api/research/experiments").json()["items"]
+    assert len(snapshots) == 2 and snapshots[0]["source_run_id"] != snapshots[1]["source_run_id"]
+    comparison = client.get(f"/api/research/experiments/compare?left_id={snapshots[1]['id']}&right_id={snapshots[0]['id']}").json()
+    assert comparison["controlled"] is True
+    assert comparison["changed_params"][0]["name"] == "n_select"
+    assert comparison["counts"]["left_selected"] > comparison["counts"]["right_selected"] == 1
+    workbench = client.get("/api/vaccine").json()
+    assert workbench["synthetic"]["variants"] == 15 and workbench["patient"]["variants"] == 0
 
 
 def test_reference_lookup_is_opt_in_and_sends_only_gene_symbols(client, monkeypatch):

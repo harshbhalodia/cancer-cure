@@ -28,7 +28,67 @@ Roadmap and design: [docs/PLAN.md](docs/PLAN.md).
 
 ### Design principles taken from [popvax/yash](https://github.com/popvax/yash)
 
-Explicit evidence tiers (present / negative / not done / unknown — no absence inferred from missing data), explicit gates with every rejection kept, provenance (quote + document + page) on every fact, local computation kept separate from model output, and a vaccine-feasibility gate that names the missing inputs (tumour NGS, matched-normal DNA, tumour RNA, HLA typing). The vaccine workbench itself (variants, HLA, design versions) is the next phase — see [docs/PLAN.md](docs/PLAN.md).
+Explicit evidence tiers (present / negative / not done / unknown — no absence inferred from missing data), explicit gates with every rejection kept, provenance (quote + document + page) on every fact, local computation kept separate from model output, and a vaccine-feasibility gate that names the missing inputs (tumour NGS, matched-normal DNA, tumour RNA, HLA typing).
+
+## Patient Action & Research Navigator
+
+- **Patient workspace** in the sidebar selects a patient; **Add a patient** starts an empty case with its own database, uploads, inbox, jobs and research records. **Existing patient** preserves the original case and files in place. Selection reloads the page so old patient responses are not displayed in the new workspace.
+- **Today → Follow-ups** keeps questions with an owner, follow-up date, priority, source evidence and change history. Track an existing suggestion or write your own. Move through open, contacted and awaiting reply; resolving requires a recorded answer. This does not acknowledge a medical alert or change treatment. Preview the visit summary before copying or sharing it.
+- **Vaccine → Clinical trials** retains registry snapshots, planned endpoints, protocol version, coordinator replies, tissue questions, travel logistics and next follow-up. Turn a question into a Today follow-up. Planned endpoints are not published results. Family-entered ECOG, surgery and autoimmune answers remain unverified; named drugs are not assumed interchangeable, and missing records remain unknown. The study team decides eligibility.
+- **Research → Evidence cards** stores public citations and reported endpoints/results, sample size, follow-up, evidence level and limitations. Cards and the comparison profile are manually entered and unverified; this page does not fetch publications or search the web. Disease wording, sarcomatoid differentiation, setting and prior PD-1 are described as resembles/differs/unknown. Missing subtype wording stays unknown. Stage, ECOG, treatment line and biomarkers are not matched; this is not a patient-benefit prediction or a clinical ranking.
+- **Vaccine → Ranked targets → Parameter experiment** validates VAF, expression, presentation and selection-count settings before queuing a computational run. **Research → Computational experiment snapshots** saves immutable copies of completed runs, including candidate ranks/scores, caveats and provenance. Compare two snapshots to see parameter changes and added/removed/shared candidates. Controlled comparisons require matching underlying input/reference fingerprints, pipeline version, dataset and predictor; incomplete provenance or changed inputs is labelled non-controlled. Snapshots survive deletion of the source run.
+
+On startup, existing experiment tables are upgraded without deleting snapshots. Older snapshots
+without comparison provenance remain non-controlled; the app does not invent missing fingerprints.
+
+**Creating scenarios:** Ranked targets shows a selectable run history. Re-running identical data
+and settings creates another execution, not different biology. Enter a hypothesis and use
+**Run parameter experiment and save scenario** to retain a new immutable Research snapshot automatically.
+Missing mutation/HLA inputs are rejected before queuing; patient data never fall back to synthetic data.
+The four editable filters override the viewed run's settings; execution uses the currently loaded data.
+
+**Local AI assistance:** From a completed run, **Draft scenario hypotheses with local AI** queues
+LM Studio to draft questions about predefined bounded parameter variations. It cannot invent inputs
+or numerical settings; the user reviews/applies a draft and separately approves execution.
+In Research, **Review snapshot with local AI** interprets only that immutable snapshot, retains
+the model identity and never changes scores. Both jobs persist and show queued/running/failed states.
+Outputs are checked for treatment advice and unsupported figures; rejected or unavailable model
+responses are errors, not fabricated successful reviews. No web research or clinical validation is performed.
+
+### Private source research notebook (no sequencing required)
+
+In **Research**, open **Add correspondence or a publication excerpt**. Save the relevant passage,
+its source type and date (remove signatures, contact details and unnecessary identifiers first).
+Correspondence is reported correspondence, not a published result; personal notes are not medical evidence.
+A URL is stored only as a citation and is never fetched by this notebook.
+
+Select up to eight sources, ask a question or choose a starter question, and click
+**Build source-grounded brief with local AI**. The brief separates reported study requirements,
+tentative concerns, evidence notes, unanswered questions and desk-research tasks. Every reported point
+selects a numbered passage from a frozen source; the server copies its quotation verbatim rather
+than asking the model to reproduce punctuation, spacing or decimal values. An invalid reference, format
+or other validation failure gets one explicit correction attempt and full revalidation; persistent errors
+still fail rather than accepting approximate citations or unsupported claims.
+Unknown sources/passages, unsupported figures,
+tentative concerns promoted to findings and detected procedural content cause an explicit failed job.
+These checks do **not** establish semantic correctness or clinical validity; review the original source.
+If a brief fails, **Retry brief #... with saved sources** reuses its original question and frozen excerpts;
+there is no need to re-enter them. The Inbox retry action also works for the same job.
+
+The notebook sends only your question and selected excerpts to a loopback LM Studio endpoint.
+It does not automatically read the patient record, search the internet, or use model memory as medical evidence.
+Source text is limited to 12,000 characters per entry and 36,000 per brief; oversized requests fail without
+silently truncating evidence. Sources are append-only; save dated corrections as new sources.
+Briefs retain frozen copies of their sources, model identity and an input fingerprint; the latest twenty
+are shown, with progress and errors. Review before copying a brief; sharing is never automatic.
+
+This supports reading and computational research **not** in-house vaccine development. A study-centre's
+tissue requirements cannot be bypassed with software. Possible treatment-related necrosis is not a confirmed
+pathology finding, and omitted variant wording is not an eligibility decision. The neoantigen pipeline is
+not a TMV vaccine model. This notebook provides no laboratory, tissue-handling, manufacturing, dosing or
+administration protocol and cannot replace oncology care, qualified laboratory work or clinical-trial oversight.
+
+Tumour-derived TMV vaccines and sequencing-based neoantigen peptide shortlists are different research platforms. Computational scores, synthetic cohorts and published group outcomes do not demonstrate personal benefit, establish eligibility, or provide a vaccine manufacturing or treatment protocol.
 
 > The requirements checklist in `backend/app/services/requirements.py` and the red-flag rules in `services/safety.py` are conservative starting points. Have the treating oncologist review and edit them.
 
@@ -54,6 +114,17 @@ cd backend; .\.venv\Scripts\python.exe -m pytest -q
 
 Patient data lives in `backend/data/` (database + uploads). `backend/data/`, `ref/`, `*.db` and `.env*`
 are git-ignored — never commit real records. Tests use synthetic text only.
+
+The original patient uses `CC_DATA_DIR` and `CC_INBOX_DIR` (the repo's `uploads/` by default).
+Added patients use `<CC_DATA_DIR>\patients\<workspace-id>\` and their own `inbox\` underneath it.
+Files dropped in the original inbox still belong to **Existing patient**, not the selected sidebar patient;
+use browser upload with the intended patient selected, or its dedicated inbox.
+Stop the app before backing up the entire data directory and original inbox.
+
+This is a private local tool, **not an authenticated shared clinic service**. Workspace selection
+separates records but is not access control or encryption. Keep it on trusted localhost and secure
+the computer and backups. Public registry/reference requests are explicit; research cards do not
+send patient information to external search services.
 
 ## Layout
 

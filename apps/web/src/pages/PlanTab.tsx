@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { api, type DoNextItem, type PackInfo } from "../api";
+import { api, workspaceUrl, type DoNextItem, type PackInfo } from "../api";
 import { MessageCard, Questions, SettleFirst, usePriorities } from "./Priorities";
 
 const KIND_LABEL: Record<string, string> = { recommendation: "Advisor advised", finding: "From the reports", check: "Missing check" };
@@ -30,7 +30,7 @@ function DoNextCard({ it, onChanged }: { it: DoNextItem; onChanged: () => void }
         {it.notes.map((n, i) => <div key={i} className="hint small">{n}</div>)}
         {it.evidence.filter((e) => e.quote).map((e, i) => (
           <div key={i} className="quote">
-            “{e.quote}” — {e.document_id ? <a href={`/api/documents/${e.document_id}/file`} target="_blank" rel="noreferrer">{e.filename || `D${e.document_id}`}</a> : "report"}
+            “{e.quote}” — {e.document_id ? <a href={workspaceUrl(`/api/documents/${e.document_id}/file`)} target="_blank" rel="noreferrer">{e.filename || `D${e.document_id}`}</a> : "report"}
           </div>
         ))}
         {it.kind === "recommendation" && (

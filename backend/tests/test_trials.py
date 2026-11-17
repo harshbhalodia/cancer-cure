@@ -43,7 +43,7 @@ def test_trial_flow_flags_gaps_notes_and_never_invents_support(client, monkeypat
     assert "Dear Dr. Pat Investigator" in a["letter"] and "overseas" in a["letter"]
     b = client.put(f"/api/trials/{a['id']}/profile", json={"ecog": "1", "surgeon_opinion": "yes", "treatment_lines": "nivolumab plus an oral tablet"}).json()
     keys = {k["key"] for k in b["key_issues"]}
-    assert "ecog" not in keys and "surgery" not in keys
+    assert "ecog" in keys and "surgery" in keys  # family-reported values remain unverified
     lines = next(k for k in b["key_issues"] if k["key"] == "lines")
     assert lines["status"] == "check" and "unverified" in lines["text"]  # reported by the family, not documented
     assert "Reported by the family" in b["letter"]
@@ -63,3 +63,36 @@ def test_refresh_reports_registry_changes(client, monkeypatch):
 def test_bad_trial_number_is_rejected_before_any_network_call():
     with pytest.raises(trials.TrialError):
         trials.fetch_study("not-a-trial")
+
+
+def test_ecog_and_drug_rules_are_specific_and_never_invent_missing_results():
+    context = {"profile": {"ecog": "2"}, "pd1_docs": [{"drug": "nivolumab", "filename": "synthetic-prescription.txt", "document_id": 1, "quote": "nivolumab given", "date": ""}]}
+    ecog = trials._evaluate("ECOG performance status 0 or 1", "inclusion", context)
+    assert ecog[0]["status"] == "check" and "Outside" in ecog[0]["text"]
+    pd1 = trials._evaluate("Patients who have received prior pembrolizumab are eligible", "inclusion", context)
+    assert pd1[0]["status"] == "check" and "interchangeable" in pd1[0]["text"]
+    hiv = trials._evaluate("HIV screening required", "inclusion", context)
+    assert hiv[0]["status"] == "missing" and "2024" not in hiv[0]["text"]
+    assert trials._ecog_range("ECOG 0-2") == {0, 1, 2}
+
+
+def test_empty_patient_has_no_pathology_support_and_unknown_criteria_stay_unknown(client, monkeypatch):
+    data = study()
+    data["criteria"].append({"n": 9, "kind": "inclusion", "text": "LVEF must satisfy the current protocol"})
+    monkeypatch.setattr(trials, "fetch_study", lambda nct: data)
+    a = client.post("/api/trials", json={"nct_id": "NCT00000001"}).json()
+    assert a["criteria"][-1]["status"] == "missing"
+    assert a["counts"]["ok"] == 0
+    assert not any("18 mm" in f["text"] for c in a["criteria"] for f in c["findings"])
+
+
+def test_trial_research_details_and_registry_snapshots_are_preserved(client, monkeypatch):
+    monkeypatch.setattr(trials, "fetch_study", lambda nct: study())
+    a = client.post("/api/trials", json={"nct_id": "NCT00000001"}).json()
+    b = client.put(f"/api/trials/{a['id']}/profile", json={"protocol_version": "Coordinator supplied v2", "coordinator_response": "Please send records through the hospital channel.", "next_followup": "2026-12-01", "tissue_details": "Availability unknown"}).json()
+    assert b["profile"]["coordinator_response"] and b["profile"]["protocol_version"]
+    monkeypatch.setattr(trials, "fetch_study", lambda nct: study("SUSPENDED"))
+    c = client.post(f"/api/trials/{a['id']}/refresh").json()
+    assert c["snapshots"][0]["data"]["status"] == "RECRUITING"
+    assert c["profile"] == b["profile"]
+    assert client.put(f"/api/trials/{a['id']}/profile", json={"ecog": "9"}).status_code == 422

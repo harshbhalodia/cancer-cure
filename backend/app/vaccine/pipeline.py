@@ -63,8 +63,29 @@ class Params:
     def from_dict(cls, d: dict | None) -> "Params":
         base = cls()
         for k, v in (d or {}).items():
-            if hasattr(base, k):
-                setattr(base, k, tuple(v) if k == "lengths" else type(getattr(base, k))(v))
+            if k not in base.as_dict():
+                raise ValueError(f"Unknown pipeline parameter: {k}")
+            if k == "lengths":
+                if not isinstance(v, (list, tuple)) or not v or any(type(n) is not int or n not in (8, 9, 10, 11) for n in v):
+                    raise ValueError("Peptide lengths must be a nonempty list of integers from 8 to 11.")
+                base.lengths = tuple(sorted(set(v)))
+                continue
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+                raise ValueError(f"{k} must be a finite number.")
+            current = getattr(base, k)
+            if isinstance(current, int) and int(v) != v:
+                raise ValueError(f"{k} must be a whole number.")
+            setattr(base, k, type(current)(v))
+        for key in ("min_vaf", "max_normal_vaf", "unknown_value"):
+            if not 0 <= getattr(base, key) <= 1:
+                raise ValueError(f"{key} must be between 0 and 1.")
+        if base.min_depth < 1 or base.min_tpm < 0 or not 1 <= base.n_select <= 100 or not 1 <= base.per_variant <= 100:
+            raise ValueError("Depth must be positive, TPM nonnegative, and selection limits between 1 and 100.")
+        if not 0 < base.max_pres_pct <= 100 or not 0 <= base.strong_pct <= base.max_pres_pct:
+            raise ValueError("Presentation percentiles must be ordered between 0 and 100, with a positive maximum.")
+        weights = [base.w_presentation, base.w_affinity, base.w_differential, base.w_vaf, base.w_expression]
+        if any(w < 0 for w in weights) or not math.isclose(sum(weights), 1.0, abs_tol=1e-6) or not 0 <= base.hotspot_points <= 100:
+            raise ValueError("Nonnegative ranking weights must sum to 1, and hotspot points must be between 0 and 100.")
         return base
 
 
@@ -243,8 +264,15 @@ def execute(variants: list[dict], alleles: list[str], params: Params, predictor:
     if len(usable) < 3:
         warnings.append(f"Only {len(usable)} HLA class I allele(s) usable; a full type has up to six, so coverage is incomplete.")
 
+    keys = ("id", "gene", "protein_change", "consequence", "vaf", "depth", "normal_vaf", "tpm", "wt_window", "wt_start")
+    references = {gene: ref(gene) for gene in sorted({v["gene"] for v in variants if not v.get("wt_window") and ingest.parse_protein_change(v["protein_change"])})}
+    research_inputs = {
+        "variants_all": [{k: v.get(k) for k in keys} for v in sorted(variants, key=lambda v: v["id"])],
+        "alleles": sorted(alleles),
+        "refs": {gene: {"source": value[1], "sha": peptides.sequence_hash(value[0])} if value else {"missing": True} for gene, value in references.items()},
+    }
     say("gating variants")
-    passed, rejected, info = gate_variants(variants, params, ref)
+    passed, rejected, info = gate_variants(variants, params, lambda gene: references.get(gene))
     rec = Recording(predictor)
     cands: list[dict] = []
     if passed:
@@ -285,7 +313,6 @@ def execute(variants: list[dict], alleles: list[str], params: Params, predictor:
     selected = select(cands, params)
     stages.append({"name": "selection", "in": len(cands), "out": len(selected)})
 
-    keys = ("id", "gene", "protein_change", "consequence", "vaf", "depth", "normal_vaf", "tpm", "wt_window", "wt_start")
     all_vars = []
     for v in sorted(variants, key=lambda d: d["id"]):
         row = {k: v.get(k) for k in keys}
@@ -296,7 +323,7 @@ def execute(variants: list[dict], alleles: list[str], params: Params, predictor:
     result = {
         "pipeline_version": PIPELINE_VERSION, "dataset": dataset, "params": params.as_dict(), "predictor": predictor.name, "alleles_used": sorted(usable),
         "alleles_unsupported": unsupported, "refs": info["refs"], "stages": stages, "rejected": rejected, "candidates": sorted(cands, key=lambda c: (-c["score"], c["id"])),
-        "selected": selected, "warnings": warnings, "inputs": inputs, "predictions": rec.recorded,
+        "selected": selected, "warnings": warnings, "inputs": inputs, "research_inputs": research_inputs, "predictions": rec.recorded,
         "tiers": {t: sum(1 for c in selected if c["tier"] == t) for t in "ABC"},
     }
     result["input_hash"] = _hash({"inputs": inputs["variants_all"], "alleles": inputs["alleles"], "params": result["params"], "version": PIPELINE_VERSION, "refs": info["refs"]})

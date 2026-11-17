@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Rec } from "../api";
+import { api, workspaceUrl, type Rec } from "../api";
 
 const CATS = ["test", "imaging", "biopsy", "surgery", "radiotherapy", "chemotherapy", "immunotherapy", "referral", "follow_up", "supportive", "lifestyle", "other"];
 const FILTERS: { id: "open" | "done" | "dismissed" | "all"; label: string }[] = [
@@ -38,7 +38,7 @@ function RecCard({ r, onChange }: { r: Rec; onChange: (recs: Rec[]) => void }) {
         </div>
       )}
       <div className="muted small">
-        {r.document_id ? <a href={`/api/documents/${r.document_id}/file`} target="_blank" rel="noreferrer">{r.filename || `D${r.document_id}`}</a> : "advice you added yourself"}
+        {r.document_id ? <a href={workspaceUrl(`/api/documents/${r.document_id}/file`)} target="_blank" rel="noreferrer">{r.filename || `D${r.document_id}`}</a> : "advice you added yourself"}
         {r.quote && <span className="quote"> “{r.quote}”</span>}
       </div>
       {r.note && !editing && <div className="small">Note: {r.note}</div>}

@@ -14,7 +14,7 @@ def utcnow() -> datetime:
 
 
 class Case(Base):
-    """The living Case File. Phase 0 supports exactly one case (id=1)."""
+    """One living case (id=1) per isolated patient workspace."""
 
     __tablename__ = "cc_case"
 
@@ -36,6 +36,35 @@ class Case(Base):
     goals: Mapped[str] = mapped_column(Text, default="")
     caregiver_contact: Mapped[str] = mapped_column(Text, default="")
     notes: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class Workspace(Base):
+    """Patient workspace catalogue, read only from the original database."""
+
+    __tablename__ = "cc_workspace"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CareAction(Base):
+    """A family's follow-up task, not a medical order. Changes retain their history."""
+
+    __tablename__ = "cc_care_action"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(300))
+    why: Mapped[str] = mapped_column(Text, default="")
+    owner: Mapped[str] = mapped_column(String(120), default="You")
+    due_date: Mapped[str] = mapped_column(String(10), default="")
+    priority: Mapped[str] = mapped_column(String(12), default="routine")
+    status: Mapped[str] = mapped_column(String(20), default="open")
+    source_key: Mapped[str | None] = mapped_column(String(120), unique=True, nullable=True)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    answer: Mapped[str] = mapped_column(Text, default="")
+    answer_source: Mapped[str] = mapped_column(String(20), default="you")
+    history: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 

@@ -60,7 +60,10 @@ def get_trial(trial_id: int, db: Session = Depends(get_db)) -> dict:
 @router.put("/{trial_id}/profile")
 def put_profile(trial_id: int, body: dict, db: Session = Depends(get_db)) -> dict:
     row = _row(db, trial_id)
-    trials.set_profile(db, row, body)
+    try:
+        trials.set_profile(db, row, body)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     return trials.assess(db, row)
 
 

@@ -19,6 +19,16 @@ nav { display: flex; flex-direction: column; gap: 4px; }
 .nav:hover { background: var(--bg); }
 .nav.active { background: var(--brand); color: var(--brand-ink); }
 .sidebar-foot { margin-top: auto; display: grid; gap: 10px; font-size: .9rem; }
+.sidebar { overflow-y: auto; }
+.patient-picker { display: grid; gap: 8px; font-size: .85rem; }
+.patient-picker details { margin-top: 6px; }
+.patient-picker input, .patient-picker button { margin-top: 6px; }
+.follow-up { padding: 12px 0; border-top: 1px solid var(--line); }
+.follow-up summary { cursor: pointer; }
+.follow-up label, .actions-panel > details label { display: block; margin: 8px 0; }
+.suggested-action { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.suggested-action > div { flex: 1; }
+.visit-preview { margin-top: 14px; }
 .sidebar-foot label { display: grid; gap: 4px; color: var(--muted); }
 select, input, textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
 textarea { resize: vertical; }

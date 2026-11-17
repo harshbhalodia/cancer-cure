@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { api, type PackInfo, type VaxCandidate, type VaxRun, type Vaccine as VaccineData } from "../api";
+import { api, workspaceUrl, type PackInfo, type ResearchAIJob, type VaxCandidate, type VaxRun, type Vaccine as VaccineData } from "../api";
 import { PackPanel } from "./PlanTab";
 import { CohortTab, OptionsTab } from "./Cohort";
 import StartHere from "./StartHere";
@@ -74,8 +74,39 @@ export default function Vaccine() {
   const [pack, setPack] = useState<PackInfo | null>(null);
   const [verify, setVerify] = useState("");
   const [board, setBoard] = useState(false);
+  const [selectedRun, setSelectedRun] = useState<VaxRun | null>(null);
+  const [hypothesis, setHypothesis] = useState("");
+  const [assistant, setAssistant] = useState<ResearchAIJob | null>(null);
+  const activeRun = selectedRun?.dataset === dataset ? selectedRun : data?.latest[dataset];
+  const runId = activeRun?.id;
+  const [experimentParams, setExperimentParams] = useState({ min_vaf: "0.10", min_tpm: "1", max_pres_pct: "2", n_select: "12" });
+  const runExperiment = async () => {
+    const params = Object.fromEntries(Object.entries(experimentParams).map(([key, value]) => [key, Number(value)]));
+    if (Object.values(experimentParams).some((v) => !v.trim()) || Object.values(params).some((v) => !Number.isFinite(v))) {
+      throw new Error("Enter a finite value for each experiment parameter.");
+    }
+    if (!hypothesis.trim()) throw new Error("Enter the computational question this scenario tests.");
+    await api.vaxRun(dataset, { ...activeRun?.params, ...params }, hypothesis.trim());
+    setSelectedRun(null);
+    say("Scenario queued. A new run and immutable Research snapshot will be saved when it completes.", true);
+  };
+  useEffect(() => {
+    let active = true;
+    setAssistant(null);
+    if (!runId) return;
+    void api.researchHypotheses(runId).then((r) => { if (active) setAssistant(r.job); }).catch((e: Error) => { if (active) setMsg(e.message); });
+    return () => { active = false; };
+  }, [runId]);
+  useEffect(() => {
+    if (!runId || !assistant || !["queued", "running"].includes(assistant.status)) return;
+    let active = true;
+    const timer = setInterval(() => {
+      void api.researchHypotheses(runId).then((r) => { if (active) setAssistant(r.job); }).catch((e: Error) => { if (active) setMsg(e.message); });
+    }, 4000);
+    return () => { active = false; clearInterval(timer); };
+  }, [runId, assistant?.status]);
 
-  const load = useCallback(() => api.vaccine().then(setData).catch(() => undefined), []);
+  const load = useCallback(() => api.vaccine().then(setData).catch((e: Error) => { setMsg(e.message); setMsgOk(false); }), []);
   const loadPack = useCallback(() => api.advisors().then((r) => setPack(r.packs.find((p) => p.id === PACK_ID) ?? null)), []);
   useEffect(() => { void load(); void loadPack(); }, [load, loadPack]);
   const busy = !!data?.jobs.some((j) => j.status === "queued" || j.status === "running") || !!pack?.running;
@@ -108,9 +139,9 @@ export default function Vaccine() {
     }
   }
 
-  if (!data) return <section className="page"><p className="muted">Loading…</p></section>;
+  if (!data) return <section className="page">{msg ? <div className="alert urgent" role="alert">{msg}<button onClick={() => void load()}>Retry</button></div> : <p className="muted">Loading…</p>}</section>;
   const mine = data[dataset];
-  const run = data.latest[dataset];
+  const run = activeRun;
   const failed = data.jobs.find((j) => j.status === "failed");
   const running = data.jobs.find((j) => j.status === "queued" || j.status === "running");
 
@@ -155,7 +186,7 @@ export default function Vaccine() {
                 </li>
               ))}
             </ul>
-            <p className="muted small" style={{ marginBottom: 0 }}>These come from your records. Tumour sequencing (ideally with a matched normal and tumour RNA) and HLA typing are the starting point for any individualised vaccine; the oncologist can order them.</p>
+            <p className="muted small" style={{ marginBottom: 0 }}>These support this computational neoantigen pipeline, not every vaccine approach. Ask the oncologist and trial centre which tests are appropriate; TMV/tumour-derived trials have separate tissue requirements.</p>
           </div>
           <div className="card">
             <div className="card-head"><h3>The realistic path</h3></div>
@@ -214,13 +245,58 @@ export default function Vaccine() {
 
       {tab === "candidates" && (
         <div>
+          <div className="card">
+            <div className="card-head"><h3>Run history · {dataset === "patient" ? "Patient" : "Synthetic demo"}</h3></div>
+            <p className="small muted">Every completed execution is a new run. Identical data and settings should produce identical targets—not new biological scenarios. To test a different assumption, change a parameter and save a scenario below.</p>
+            <label>View completed run<select value={selectedRun?.dataset === dataset ? selectedRun.id : ""} onChange={(e) => {
+              const id = Number(e.target.value);
+              if (!id) { setSelectedRun(null); setVerify(""); return; }
+              void guard(async () => { setSelectedRun(await api.vaxGetRun(id)); setVerify(""); });
+            }}>
+              <option value="">Latest {run ? `(#${data.latest[dataset]?.id})` : "(none)"}</option>
+              {data.runs.filter((r) => r.dataset === dataset).map((r) => <option key={r.id} value={r.id}>Run #{r.id} · {r.selected} selected · {r.created_at}</option>)}
+            </select></label>
+            {run && <p className="small">Viewing run #{run.id} · {run.created_at} · {run.selected.length} selected targets.</p>}
+          </div>
+          <details className="card">
+            <summary><strong>Run a computational parameter experiment</strong></summary>
+            <p className="small">Change selection assumptions, not patient facts. These parameters affect computational shortlists, not vaccine efficacy. Save completed runs with a hypothesis in the Research workspace to compare them.</p>
+            <div className="form-grid">
+              <label>Minimum tumour VAF (0–1)<input type="number" min="0" max="1" step="0.01" value={experimentParams.min_vaf} onChange={(e) => setExperimentParams({ ...experimentParams, min_vaf: e.target.value })} /></label>
+              <label>Minimum expression TPM<input type="number" min="0" step="0.1" value={experimentParams.min_tpm} onChange={(e) => setExperimentParams({ ...experimentParams, min_tpm: e.target.value })} /></label>
+              <label>Maximum presentation percentile (0.5–100)<input type="number" min="0.5" max="100" step="0.1" value={experimentParams.max_pres_pct} onChange={(e) => setExperimentParams({ ...experimentParams, max_pres_pct: e.target.value })} /></label>
+              <label>Maximum selected candidates (1–100)<input type="number" min="1" max="100" step="1" value={experimentParams.n_select} onChange={(e) => setExperimentParams({ ...experimentParams, n_select: e.target.value })} /></label>
+            </div>
+            <label>Scenario hypothesis / question<textarea maxLength={2000} rows={2} value={hypothesis} onChange={(e) => setHypothesis(e.target.value)} placeholder="Which computational assumption are you testing?" /></label>
+            <p className="small muted">Dataset: {dataset === "synthetic" ? "synthetic software test" : "this patient's loaded data"}. Other settings retain the viewed run's values, or pipeline defaults if no run exists. Execution uses the currently loaded inputs; changed inputs will be flagged in Research comparisons.</p>
+            <button disabled={!!running || mine.variants === 0 || !mine.hla.length || !hypothesis.trim()} onClick={() => void guard(runExperiment)}>Run parameter experiment and save scenario</button>
+            {run && <div>
+              <p className="small">Local AI can draft questions about bounded filter variations. It cannot add patient mutations, HLA types or efficacy scores. Nothing runs until you approve it.</p>
+              <button disabled={!!assistant && ["queued", "running"].includes(assistant.status)} onClick={() => void guard(async () => { setAssistant((await api.researchHypotheses(run.id, true)).job); })}>Draft scenario hypotheses with local AI</button>
+              {assistant && ["queued", "running"].includes(assistant.status) && <p role="status">Local AI {assistant.status}; this may take several minutes.</p>}
+              {assistant?.status === "failed" && <div className="alert urgent" role="alert">{assistant.error}</div>}
+              {assistant?.result.proposals?.map((proposal) => <div key={proposal.id} className="card">
+                <p>{proposal.hypothesis}</p>
+                <p className="small">VAF {String(proposal.params.min_vaf)} · TPM {String(proposal.params.min_tpm)} · maximum presentation percentile {String(proposal.params.max_pres_pct)} · selection count {String(proposal.params.n_select)}</p>
+                <button onClick={() => {
+                  setHypothesis(proposal.hypothesis);
+                  setExperimentParams({ min_vaf: String(proposal.params.min_vaf), min_tpm: String(proposal.params.min_tpm), max_pres_pct: String(proposal.params.max_pres_pct), n_select: String(proposal.params.n_select) });
+                }}>Use this draft (review before running)</button>
+              </div>)}
+              {assistant?.result.model && <p className="small muted">{assistant.result.model} · {assistant.result.note}</p>}
+            </div>}
+          </details>
           <div className="row wrap" style={{ justifyContent: "space-between" }}>
             <div className="tabs small-tabs">
               {(["patient", "synthetic"] as const).map((d) => <button key={d} className={dataset === d ? "tab on" : "tab"} onClick={() => setDataset(d)}>{d === "patient" ? "Patient" : "Synthetic demo"}</button>)}
             </div>
-            <button className="primary" disabled={!!running || mine.variants === 0} onClick={() => guard(() => api.vaxRun(dataset))}>{running ? "Running…" : run ? "Run again" : "Run the pipeline"}</button>
+            <button className="primary" disabled={!!running || mine.variants === 0 || !mine.hla.length} onClick={() => guard(async () => {
+              await api.vaxRun(dataset); setSelectedRun(null);
+              say("New default-parameter run queued. Same inputs and settings should give the same targets; parameter scenarios are saved separately in Research.", true);
+            })}>{running ? "Running…" : run ? "Run again" : "Run the pipeline"}</button>
           </div>
           {mine.variants === 0 && <p className="muted">No {dataset === "patient" ? "patient mutations loaded yet. Add them in the Data tab" : "synthetic data yet. Load it in Where you are"}.</p>}
+          {!mine.hla.length && <p className="muted">HLA typing is missing for this dataset. Add class I HLA typing before running; it is never inferred or substituted.</p>}
           {running && <div className="progress-card card"><div className="spinner small" /><div className="small">{running.detail || "Starting (the binding model takes a few seconds to load)…"}</div></div>}
           {failed && !running && <div className="alert urgent">The last run could not finish: {failed.error}</div>}
           {run && (
@@ -242,8 +318,8 @@ export default function Vaccine() {
                 <ul className="small">{run.rejected.map((r, i) => <li key={i}><b>{r.gene} {r.change}</b> — {r.stage}: {r.reason}</li>)}</ul>
               </details>
               <div className="row wrap" style={{ justifyContent: "flex-start" }}>
-                <a className="btn-link" href={`/api/vaccine/runs/${run.id}/dossier`}>Download dossier (.md)</a>
-                <a className="btn-link" href={`/api/vaccine/runs/${run.id}/dossier?fmt=json`}>Download data (.json)</a>
+                <a className="btn-link" href={workspaceUrl(`/api/vaccine/runs/${run.id}/dossier`)}>Download dossier (.md)</a>
+                <a className="btn-link" href={workspaceUrl(`/api/vaccine/runs/${run.id}/dossier?fmt=json`)}>Download data (.json)</a>
                 <button onClick={() => api.vaxVerify(run.id).then((r) => setVerify(r.ok ? `✅ Replayed from the recorded predictions: identical (${r.replayed.slice(0, 12)}).` : `❌ ${r.detail}`))}>Verify by replay</button>
                 {verify && <span className="small">{verify}</span>}
               </div>

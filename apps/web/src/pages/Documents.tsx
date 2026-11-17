@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type Doc, type ScanProposal } from "../api";
+import { api, workspaceUrl, type Doc, type ScanProposal } from "../api";
 import CaseReview, { type CaseReviewData } from "./CaseReview";
 import ScanReview from "./ScanReview";
 
@@ -91,7 +91,7 @@ export default function Documents({ version, onUpload, onOpenCase, onOpenProgres
         {docs.map((d) => (
           <li key={d.id}>
             <div>
-              <a href={`/api/documents/${d.id}/file`} target="_blank" rel="noreferrer">
+              <a href={workspaceUrl(`/api/documents/${d.id}/file`)} target="_blank" rel="noreferrer">
                 <strong>{d.filename}</strong>
               </a>
               <div className="muted">

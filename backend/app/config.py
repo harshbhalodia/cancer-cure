@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -48,5 +50,21 @@ class Settings(BaseSettings):
 
 
 @lru_cache
-def get_settings() -> Settings:
+def get_base_settings() -> Settings:
     return Settings()
+
+
+_settings_context: ContextVar[Settings | None] = ContextVar("cc_settings", default=None)
+
+
+def get_settings() -> Settings:
+    return _settings_context.get() or get_base_settings()
+
+
+@contextmanager
+def settings_context(settings: Settings):
+    token = _settings_context.set(settings)
+    try:
+        yield
+    finally:
+        _settings_context.reset(token)

@@ -14,6 +14,7 @@ family reports that no document backs up are labelled as such and never counted 
 from __future__ import annotations
 
 import re
+import copy
 from datetime import date, datetime, timezone
 
 import httpx
@@ -65,7 +66,8 @@ def fetch_study(nct: str) -> dict:
     nct = nct.strip().upper()
     if not NCT.match(nct):
         raise TrialError("A trial number looks like NCT followed by 8 digits, for example NCT06868433.")
-    p = _get(f"{API}/{nct}", {"fields": FIELDS}).get("protocolSection", {})
+    record = _get(f"{API}/{nct}")
+    p = record.get("protocolSection", {})
     ident, st, des, el, loc = (p.get(k, {}) for k in ("identificationModule", "statusModule", "designModule", "eligibilityModule", "contactsLocationsModule"))
     sites = [{"facility": s.get("facility", ""), "city": s.get("city", ""), "country": s.get("country", ""), "status": s.get("status", ""),
               "contacts": [{k: c.get(k, "") for k in ("name", "role", "phone", "email")} for c in s.get("contacts", [])]} for s in loc.get("locations", [])]
@@ -73,7 +75,12 @@ def fetch_study(nct: str) -> dict:
             "phase": ", ".join(des.get("phases", [])), "enrollment": (des.get("enrollmentInfo") or {}).get("count"), "eligibility_text": el.get("eligibilityCriteria", ""),
             "min_age": el.get("minimumAge", ""), "sex": el.get("sex", ""), "central": [{k: c.get(k, "") for k in ("name", "role", "phone", "email")} for c in loc.get("centralContacts", [])],
             "officials": [{"name": o.get("name", ""), "affiliation": o.get("affiliation", ""), "role": o.get("role", "")} for o in loc.get("overallOfficials", [])], "sites": sites,
-            "criteria": parse_criteria(el.get("eligibilityCriteria", ""))}
+            "criteria": parse_criteria(el.get("eligibilityCriteria", "")),
+            "summary": p.get("descriptionModule", {}).get("briefSummary", ""),
+            "description": p.get("descriptionModule", {}).get("detailedDescription", ""),
+            "arms": p.get("armsInterventionsModule", {}).get("armGroups", []),
+            "outcomes": p.get("outcomesModule", {}),
+            "has_results": record.get("hasResults", False)}
 
 
 def search(term: str = "vaccine OR neoantigen", country: str = "", status: str = "RECRUITING") -> list[dict]:
@@ -102,15 +109,17 @@ DRUG = re.compile(r"nivolumab|opdivo|tishtha|pembrolizumab|keytruda|toripalimab|
 GIVEN = re.compile(r"cycle|\bmg\b|received|given|infusion|started|dose|prescri|tab\.|inj\.", re.I)
 
 
-def _documented_pd1(texts: list[tuple[Document, str]]) -> list[str]:
+def _documented_pd1(texts: list[tuple[Document, str]]) -> list[dict]:
     hits = []
     for d, t in texts:
         if d.doc_type == "genomics":  # test reports quote drug names as boilerplate
             continue
         for m in DRUG.finditer(t):
-            if GIVEN.search(t[max(0, m.start() - 80): m.end() + 80]):
-                hits.append(d.filename)
-                break
+            excerpt = t[max(0, m.start() - 80): m.end() + 80]
+            if GIVEN.search(excerpt) and not re.search(r"\b(not received|never received|not given|consider|planned|may receive)\b", excerpt, re.I):
+                name = m.group(0).lower()
+                drug = "pembrolizumab" if name in ("pembrolizumab", "keytruda") else "nivolumab" if name in ("nivolumab", "opdivo", "tishtha") else name
+                hits.append({"drug": drug, "filename": d.filename, "document_id": d.id, "quote": excerpt, "date": d.doc_date})
     return hits
 
 
@@ -120,7 +129,12 @@ def _labs(texts: list[tuple[Document, str]]) -> dict | None:
         if d.doc_type != "lab" and not re.search(r"BIOCHEMISTRY|COMPLETE BLOOD COUNT", t):
             continue
         m = re.search(r"Reporting Date\.?:?\s*(\d{1,2})/(\d{1,2})/(\d{4})", t)
-        when = date(int(m.group(3)), int(m.group(2)), int(m.group(1))) if m else None
+        when = None
+        if m:
+            try:
+                when = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+            except ValueError as exc:
+                raise TrialError(f"Invalid reporting date in {d.filename}; correct the document date before assessing laboratory results.") from exc
         vals = {}
         for key, pat in (("hb", r"HAEMOGLOBIN\s+([\d.]+)"), ("platelets", r"PLATELET COUNT\s+([\d,]+)"), ("creatinine", r"S\.?\s?Creatinine:?\s+([\d.]+)"), ("alt", r"\(ALT\):?\s+([\d.]+)")):
             v = re.search(pat, t, re.I)
@@ -132,19 +146,29 @@ def _labs(texts: list[tuple[Document, str]]) -> dict | None:
 
 
 def _context(db: Session, profile: dict) -> dict:
-    values, _ = casefile.derive(db)
+    values, meta = casefile.derive(db)
     texts = _texts(db)
     f = {x["key"]: x for x in fasttrack.findings(db)}
     age = re.search(r"\d+", str(values.get("age") or ""))
     tracks = {t["id"]: t for t in priorities.tracks(db)}
-    return {"age": int(age.group(0)) if age else None, "histology": f.get("histology"), "tongue": any(re.search(r"tongue", t, re.I) for _, t in texts),
+    return {"age": int(age.group(0)) if age else None, "age_source": meta["age"], "histology": f.get("histology"), "tongue": any(re.search(r"tongue", t, re.I) for _, t in texts),
             "scan": priorities.latest_scan(db), "vessel": tracks.get("vessel"), "residual": tracks.get("residual"), "labs": _labs(texts), "pd1_docs": _documented_pd1(texts),
             "treatments": fasttrack._treatments(db), "profile": profile or {}, "recurrent_wording": any(re.search(r"appears to be recurrent|recurrent neoplastic", t, re.I) for _, t in texts)}
 
 
 # ------------------------------------------------------------------------------------------------ rules
-def _f(status: str, text: str, ask: str = "", key: str = "") -> dict:
-    return {"status": status, "text": text, "ask": ask, "key": key}
+def _f(status: str, text: str, ask: str = "", key: str = "", evidence: dict | None = None) -> dict:
+    return {"status": status, "text": text, "ask": ask, "key": key, "evidence": evidence or {}}
+
+
+def _ecog_range(text: str) -> set[int] | None:
+    match = re.search(r"(?:performance status|ecog)[^0-4]{0,40}([0-4](?:\s*(?:,|or|and|[-–]|to)\s*[0-4])*)", text, re.I)
+    if not match:
+        return None
+    values = [int(v) for v in re.findall(r"[0-4]", match.group(1))]
+    if re.search(r"[-–]|\bto\b", match.group(1)) and len(values) == 2:
+        return set(range(values[0], values[1] + 1))
+    return set(values)
 
 
 def _lab_line(c: dict) -> str:
@@ -153,39 +177,49 @@ def _lab_line(c: dict) -> str:
         return "No blood test results are on file."
     age_days = (date.today() - lab["date"]).days if lab["date"] else None
     bits = [f"Hb {lab['hb']} g/dL" if "hb" in lab else "", f"platelets {lab['platelets']}" if "platelets" in lab else "",
-            f"creatinine {lab['creatinine']} mg/dL (that lab's range 0.7–1.3)" if "creatinine" in lab else "", f"ALT {lab['alt']}" if "alt" in lab else ""]
-    return (f"The only blood test on file is from {lab['date'].strftime('%d %b %Y') if lab['date'] else 'an unknown date'}"
+            f"creatinine {lab['creatinine']} mg/dL" if "creatinine" in lab else "", f"ALT {lab['alt']}" if "alt" in lab else ""]
+    return (f"Available blood test results are from {lab['date'].strftime('%d %b %Y') if lab['date'] else 'an unknown date'}"
             + (f" ({age_days // 30} months old)" if age_days is not None else "") + f" ({lab['file']}): " + ", ".join(b for b in bits if b) + ". It cannot show today's values.")
 
 
 def _evaluate(text: str, kind: str, c: dict) -> list[dict]:
     t, p, out = text.lower(), c["profile"], []
 
-    if re.search(r"≥ ?18 years|at least.{0,6}18", t):
-        out.append(_f("ok", f"He is {c['age']} years old." if c["age"] else "Age is not on file.") if c["age"] and c["age"] >= 18 else _f("missing", "Age is not on file."))
+    if kind == "inclusion" and re.search(r"\bage\b|\baged\b|years", t):
+        minimum = re.search(r"(?:≥|>=|at least)\s*(?:≥\s*)?(\d+)", t)
+        age_range = re.search(r"(\d+)\s*[-–]\s*(\d+)\s*(?:years|years of age)", t)
+        if c.get("age") is None:
+            out.append(_f("missing", "Age is not on file.", key="age"))
+        elif minimum or age_range:
+            fits = c["age"] >= int(minimum.group(1)) if minimum else int(age_range.group(1)) <= c["age"] <= int(age_range.group(2))
+            documented = c.get("age_source", {}).get("source") == "document"
+            out.append(_f("ok" if fits and documented else "check", f"Recorded age: {c['age']}. " + ("Within the stated range; verify age and date at screening." if fits else "Outside the stated age range.") + ("" if documented else " User-reported, unverified."), key="age", evidence=c.get("age_source")))
+        else:
+            out.append(_f("check", "The age rule could not be interpreted reliably. Ask the study team.", key="age"))
     if re.search(r"histolog|squamous", t):
         h = c["histology"]
-        if kind == "inclusion" and h:
-            out.append(_f("ok", f"Pathology on file: {h['text']} ({h['filename']})."))
+        if kind == "inclusion":
+            out.append(_f("check" if h else "missing", f"Pathology on file: {h['text']} ({h['filename']}). The study team must confirm the accepted histology." if h else "No sourced pathology is available for this histology criterion.", key="histology", evidence=h))
         if re.search(r"sarcomatoid|differentiation", (h or {}).get("text", ""), re.I):
-            out.append(_f("check", "His pathology says “with sarcomatoid differentiation”. This trial accepts squamous cell carcinoma and excludes non-squamous histology.",
-                          "His pathology report describes invasive squamous cell carcinoma with sarcomatoid differentiation. Does this count as squamous cell carcinoma for eligibility?", "histology"))
+            out.append(_f("check", "The pathology records sarcomatoid differentiation. The investigator must review how this fits the histology criterion.",
+                          "Does the recorded sarcomatoid differentiation meet your protocol's histology requirements?", "histology", h))
         if "oral cavity" in t and c["tongue"]:
-            out.append(_f("ok", "Oral cavity (tongue) is one of the accepted sites."))
+            out.append(_f("check", "Documents mention the tongue; oral cavity is listed in this criterion. Confirm the primary site from the pathology.", key="histology"))
     if "non-squamous" in t and not any(x["status"] == "check" for x in out):
-        out.append(_f("ok", "Pathology on file is squamous cell carcinoma."))
+        out.append(_f("check" if c.get("histology") else "missing", "Review the pathology against this exclusion; absence of a report does not establish squamous histology.", key="histology"))
     if "salvage surgery" in t and kind == "inclusion":
         s = p.get("surgeon_opinion")
         if s == "yes":
-            out.append(_f("ok", "The surgeon has said the current disease can be removed with curative intent (as you recorded)."))
+            out.append(_f("check", "You report that the surgeon considers salvage surgery feasible. This is unverified; ask the study team to review the surgical opinion.", key="surgery"))
         elif s == "no":
             out.append(_f("check", "The surgeon has said it cannot be removed with curative intent (as you recorded). This trial requires salvage surgery.", "", "surgery"))
         else:
-            out.append(_f("missing", "Needs the head-and-neck surgeon’s opinion on whether the current disease can be removed with curative intent. The scan shows a residual 18 mm lesion, which may or may not be removable.",
-                          "If his recurrent tongue cancer is judged removable by salvage surgery, can the surgery and tissue collection be done under the study, and where?", "surgery"))
+            out.append(_f("missing", "A sourced surgeon's opinion on feasibility of salvage surgery is needed. Imaging alone cannot establish operability.",
+                          "Does the patient meet the surgical criterion, and where must surgery and tissue collection occur?", "surgery"))
     if re.search(r"tissue|cellularity|gram|banked", t):
-        out.append(_f("missing", "No information on file about tumour tissue available for the study (amount, % tumour cells, whether it is frozen). The study wants fresh tissue collected at salvage surgery.",
-                      "Can previously stored tissue (FFPE blocks) be used, or must fresh tissue be collected during surgery? What is the exact minimum tissue weight?", "tissue"))
+        tissue = p.get("tissue_details", "")
+        out.append(_f("check" if tissue else "missing", f"User-reported tissue information (unverified): {tissue}" if tissue else "Tissue availability, collection timing, preservation and cellularity have not been confirmed for this criterion.",
+                      "Which stored or fresh tissue is acceptable, what amount is needed, and when must consent and collection occur?", "tissue"))
     if re.search(r"\blines?\b|regimens?|progressed on|failed standard", t):
         txt = (p.get("treatment_lines") or "").strip()
         if txt:
@@ -196,39 +230,50 @@ def _evaluate(text: str, kind: str, c: dict) -> list[dict]:
             out.append(_f("missing", f"The documents on file record only: {rec}. No document names the drugs given for recurrent disease, their dates, or when they stopped or failed.",
                           "How does the protocol count lines of treatment, and what documentation of prior treatments is required?", "lines"))
         if re.search(r"recurrent", t) and c["recurrent_wording"]:
-            out.append(_f("check", "The PET-CT says the tongue lesion “appears to be recurrent”. That is an imaging impression, not a biopsy result.", "Is biopsy confirmation of recurrence required?", "recurrence"))
+            out.append(_f("check", "A document uses possible-recurrence wording. That is an imaging impression, not biopsy confirmation.", "Is biopsy confirmation of recurrence required?", "recurrence"))
     if re.search(r"pembrolizumab|nivolumab|immunotherapy|checkpoint|monoclonal", t) and "hypersensitivity" not in t and kind == "inclusion":
         docs = c["pd1_docs"]
-        out.append(_f("ok", f"Anti-PD-1 treatment is documented in: {', '.join(docs)}.") if docs else
-                   _f("missing", "No uploaded document shows nivolumab, pembrolizumab or any other immunotherapy being given. If he is on one, upload the prescription or a photo of the packaging.",
-                      "Is prior nivolumab (rather than pembrolizumab) acceptable? The listing explicitly permits pembrolizumab but does not mention nivolumab.", "pd1"))
+        if docs:
+            names = sorted({d["drug"] for d in docs})
+            named = {drug for drug in ("pembrolizumab", "nivolumab") if drug in t}
+            permissive = bool(re.search(r"prior|previous", t) and re.search(r"eligible|allowed|permitted", t))
+            exact = permissive and bool(named) and named <= set(names)
+            out.append(_f("ok" if exact else "check", "Treatment mentions in documents: " + ", ".join(f"{d['drug']} ({d['filename']})" for d in docs) + ". " +
+                          ("The named drug is recorded; this does not establish dates, progression or overall eligibility." if exact else "Drug classes are not interchangeable, and a mention does not prove treatment failure."),
+                          "Does the documented prior treatment satisfy this exact criterion, including drug, dates and progression?", "pd1", {"records": docs}))
+        else:
+            out.append(_f("missing", "No sourced record of the relevant immunotherapy being given is available.",
+                          "Which prior immunotherapies are accepted, and what evidence of treatment and progression is required?", "pd1"))
     if re.search(r"ecog|performance status", t):
         e = str(p.get("ecog", ""))
-        out.append(_f("ok", f"ECOG {e} (as recorded by you).") if e in ("0", "1", "2") else _f("check", f"ECOG {e} is outside the accepted range.") if e in ("3", "4") else
-                   _f("missing", "ECOG performance status is not recorded anywhere. His oncologist assigns it (0 = fully active, 2 = up and about more than half the day but unable to work).", "", "ecog"))
+        allowed = _ecog_range(t)
+        if e not in ("0", "1", "2", "3", "4"):
+            out.append(_f("missing", "ECOG is unknown. Ask the oncologist to assess and document it.", key="ecog"))
+        else:
+            range_note = "The permitted range could not be interpreted reliably." if allowed is None else "Within the stated range." if int(e) in allowed else "Outside the stated range."
+            out.append(_f("check", f"ECOG {e}, reported by you and unverified. {range_note}", "Please confirm the current clinician-assessed ECOG against this criterion.", "ecog"))
     if re.search(r"measurable|recist", t):
-        out.append(_f("check", "The PET-CT gives measurements (tongue lesion 18 mm; right neck node 4 mm). The trial’s radiologists decide what counts as measurable by RECIST, which is normally judged on CT or MRI; a 4 mm node would not count.",
-                      "Is the residual tongue lesion measurable by RECIST on CT or MRI? Do you need a new scan?", "measurable") if c["scan"] else _f("missing", "No scan on file."))
+        scan = c.get("scan")
+        measurements = "; ".join(f"{l['label']}: {l['now']:g} mm" for l in priorities._lesions(scan) if l["now"] is not None) if scan else ""
+        out.append(_f("check" if scan else "missing", f"Recorded scan {scan.scan_date}: {measurements or 'no measurements confirmed'}. " + "The study radiologist must assess measurable disease; the app's size arithmetic is not formal RECIST." if scan else "No confirmed scan is on file.",
+                      "Is disease measurable under the protocol, and is new CT or MRI required?", "measurable"))
     if re.search(r"neutrophil|platelet|hemoglobin|bilirubin|aspartate|alanine|albumin|creatinine", t):
         out.append(_f("check", _lab_line(c), "", "labs"))
     if re.search(r"\binr\b|anticoag|bleeding|coagulopathy", t):
         v, a = c["vessel"], p.get("anticoagulant", "")
-        base = ("He has a reported right internal jugular vein thrombosis (PET-CT, 2 Nov 2026), which should be disclosed. " if v else "") + "No INR result is on file."
-        if a == "lmwh":
-            out.append(_f("check", base + " You recorded low-molecular-weight heparin: the trial allows only that, on a stable dose for over 2 weeks.", "He has a vein clot on LMWH. Does that fit the INR and anticoagulation rules, and what surgical bleeding precautions apply?", "clot"))
-        elif a in ("other", "none", ""):
-            out.append(_f("check", base + (f" Anticoagulant recorded: {a}." if a else " Whether he is on a blood thinner is not recorded.") + " Only low-molecular-weight heparin is allowed.",
-                          "He has a reported neck-vein clot. How is a clot and any blood thinner handled in the protocol?", "clot"))
+        base = (f"An open vascular finding is recorded: {v['title']}. " if v else "") + "Current INR/coagulation results have not been confirmed against this criterion."
+        note = f" Anticoagulant reported by you (unverified): {a}." if a else " Current anticoagulation is unknown."
+        out.append(_f("check", base + note, "How does the patient's vascular finding, coagulation status and any anticoagulant fit this exact criterion? Do not change medicines to meet eligibility.", "clot"))
     if re.search(r"immunosuppress|autoimmune|corticosteroid|prednisone", t):
         a = p.get("autoimmune_or_steroids", "")
-        out.append(_f("ok", "You recorded no autoimmune disease or steroid use.") if a == "no" else _f("check", "You recorded an autoimmune condition or steroid use: tell the study team.") if a == "yes" else
-                   _f("missing", "Not recorded: any autoimmune disease, and steroid or immunosuppressant use within 14 days.", "", "autoimmune"))
+        out.append(_f("check", f"Autoimmune disease / steroid use reported by you: {a} (unverified). Ask the team to review medication history and the protocol's timing.") if a in ("no", "yes") else
+                   _f("missing", "Autoimmune history and steroid or immunosuppressant use are unknown.", key="autoimmune"))
     if re.search(r"prior malignanc", t):
-        out.append(_f("missing", "No other cancers are recorded in the documents; confirm there are none in the last 5 years.", "", "priormalig"))
+        out.append(_f("missing", "Prior malignancy history has not been confirmed against this criterion.", "", "priormalig"))
     if re.search(r"hiv", t):
-        out.append(_f("routine", "An HIV screening test on 25 Dec 2024 was non-reactive (old; the study team will repeat what it needs)."))
+        out.append(_f("missing", "HIV status is not established by this assessment. Ask the study team which sourced screening results it requires.", key="screening"))
     if re.search(r"pregnan|childbearing|contracepti", t):
-        out.append(_f("routine", "Mostly about women; for men the study asks for contraception during the study."))
+        out.append(_f("routine", "The study team must determine which pregnancy, reproductive and contraception requirements apply."))
     return out
 
 
@@ -242,9 +287,9 @@ def assess(db: Session, trial: Trial) -> dict:
     crits = []
     for cr in data.get("criteria", []):
         findings = _evaluate(cr["text"], cr["kind"], c)
-        status = min((x["status"] for x in findings), key=lambda s: ORDER[s]) if findings else "routine"
+        status = min((x["status"] for x in findings), key=lambda s: ORDER[s]) if findings else "missing"
         if not findings:
-            findings = [_f("routine", "A standard check the study team does itself.")]
+            findings = [_f("missing", "This criterion is not evaluated by the app. Coordinator confirmation is needed.", key=f"criterion_{cr['n']}")]
         crits.append({**cr, "status": status, "findings": findings})
     counts = {s: sum(1 for x in crits if x["status"] == s) for s in ("ok", "check", "missing", "routine")}
     keyed: dict[str, dict] = {}
@@ -256,7 +301,9 @@ def assess(db: Session, trial: Trial) -> dict:
     text = data.get("eligibility_text", "")
     notes = []
     if re.search(r"progressed on ≥ ?2 lines", text):
-        notes.append("This registry text requires progression on at least 2 lines of standard treatment, and allows up to 3 regimens after the cancer became recurrent or metastatic. Other summaries of the same trial can say 1 line: ask for the current protocol in writing.")
+        notes.append("This registry text requires progression on at least 2 lines of standard treatment. Confirm how those lines are counted in the current protocol.")
+    if re.search(r"up to 3", text) and re.search(r"no restriction on prior lines", text):
+        notes.append("The registry says both up to 3 regimens and no restriction on prior lines. Ask the investigator to resolve this contradiction.")
     if re.search(r"≥ ?\.?0?\.?5 grams?", text) and re.search(r"less than 1\.0 gram", text):
         notes.append("The registry text gives two different tissue minimums (at least 0.5 g in inclusion, under 1.0 g as an exclusion). Ask which applies.")
     if re.search(r"banked.{0,60}salvage surgery|salvage surgery.{0,120}(informed consent|ICF)", text, re.S | re.I):
@@ -267,11 +314,16 @@ def assess(db: Session, trial: Trial) -> dict:
         notes.append(f"Recruiting sites are listed only in: {', '.join(countries) or 'unknown'}. No site in India is listed, so ask about overseas participation.")
     if data.get("status") and data["status"] != "RECRUITING":
         notes.append(f"Registry status is {data['status']}: confirm it is still enrolling.")
+    notes.append("Criterion checks are incomplete and do not decide eligibility. Reported family answers remain unverified; obtain coordinator confirmation.")
+    if data.get("has_results") is False:
+        notes.append("No results are posted in this registry record. Listed endpoints are planned measurements, not observed benefits.")
     return {"id": trial.id, "nct_id": trial.nct_id, "title": trial.title, "status": trial.status, "phase": data.get("phase", ""), "verified": data.get("verified", ""),
             "last_update": data.get("last_update", ""), "enrollment": data.get("enrollment"), "fetched_at": trial.fetched_at.isoformat() if trial.fetched_at else "",
             "counts": counts, "key_issues": key_issues, "notes": notes, "criteria": crits, "profile": trial.profile or {}, "log": trial.log or [], "central": data.get("central", []),
             "officials": data.get("officials", []), "sites": sites, "letter": letter(db, trial, c, key_issues, notes),
-            "url": f"https://clinicaltrials.gov/study/{trial.nct_id}"}
+            "url": f"https://clinicaltrials.gov/study/{trial.nct_id}", "summary": data.get("summary", ""),
+            "arms": data.get("arms", []), "outcomes": data.get("outcomes", {}),
+            "has_results": data.get("has_results"), "snapshots": data.get("snapshots", [])}
 
 
 def letter(db: Session, trial: Trial, c: dict, issues: list[dict], notes: list[str]) -> str:
@@ -287,7 +339,7 @@ def letter(db: Session, trial: Trial, c: dict, issues: list[dict], notes: list[s
     reported = (c["profile"].get("treatment_lines") or "").strip()
     name = re.sub(r"^(dr\.?\s+)+", "", pi.split(",")[0].strip(), flags=re.I)
     body = [f"Dear {('Dr. ' + name) if name else 'Study team'} and research team,", "",
-            f"I am writing on behalf of my father about your study {trial.nct_id} ({trial.title}). His records show:", ""]
+            f"I am writing on behalf of the patient about your study {trial.nct_id} ({trial.title}). The records show:", ""]
     body += [f"- {s}" for s in summary]
     if reported:
         body += ["", f"Reported by the family (not yet backed by documents; we will send the prescriptions): {reported}"]
@@ -301,6 +353,15 @@ def _log(trial: Trial, text: str) -> None:
     trial.log = [*(trial.log or []), {"when": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"), "text": text}]
 
 
+def _store_registry(row: Trial, data: dict) -> None:
+    previous = row.data or {}
+    snapshots = copy.deepcopy(previous.get("snapshots", []))
+    if previous:
+        snapshots.append({"fetched_at": row.fetched_at.isoformat() if row.fetched_at else "",
+                          "data": copy.deepcopy({k: v for k, v in previous.items() if k != "snapshots"})})
+    row.title, row.status, row.data, row.fetched_at = data["title"], data["status"], {**data, "snapshots": snapshots}, datetime.now(timezone.utc)
+
+
 def add(db: Session, nct: str) -> Trial:
     d = fetch_study(nct)
     row = db.query(Trial).filter_by(nct_id=d["nct_id"]).first()
@@ -308,7 +369,7 @@ def add(db: Session, nct: str) -> Trial:
         row = Trial(nct_id=d["nct_id"])
         db.add(row)
         _log(row, f"Added from ClinicalTrials.gov (status {d['status']}, registry last updated {d['last_update']}).")
-    row.title, row.status, row.data, row.fetched_at = d["title"], d["status"], d, datetime.now(timezone.utc)
+    _store_registry(row, d)
     db.commit()
     return row
 
@@ -323,7 +384,7 @@ def refresh(db: Session, trial: Trial) -> list[str]:
         changes.append("The eligibility criteria text changed. Re-read the criteria below.")
     if {(s["facility"], s["status"]) for s in new["sites"]} != {(s["facility"], s["status"]) for s in old.get("sites", [])}:
         changes.append("Sites or their recruiting status changed.")
-    trial.title, trial.status, trial.data, trial.fetched_at = new["title"], new["status"], new, datetime.now(timezone.utc)
+    _store_registry(trial, new)
     _log(trial, "Re-checked the registry: " + (" ".join(changes) if changes else "no changes."))
     db.commit()
     return changes
@@ -332,12 +393,26 @@ def refresh(db: Session, trial: Trial) -> list[str]:
 def set_profile(db: Session, trial: Trial, profile: dict) -> None:
     allowed = {"ecog": {"", "0", "1", "2", "3", "4"}, "surgeon_opinion": {"", "yes", "no"}, "anticoagulant": {"", "none", "lmwh", "other"}, "autoimmune_or_steroids": {"", "yes", "no"}}
     clean = dict(trial.profile or {})
+    text_fields = {"treatment_lines": 1000, "protocol_version": 200, "coordinator_response": 4000,
+                   "tissue_details": 2000, "logistics": 2000, "next_followup": 10}
+    unknown = set(profile) - set(allowed) - set(text_fields)
+    if unknown:
+        raise ValueError("Unknown trial profile fields: " + ", ".join(sorted(unknown)))
     for k, vals in allowed.items():
+        if k in profile and str(profile[k]) not in vals:
+            raise ValueError(f"Invalid value for {k}.")
         if k in profile and str(profile[k]) in vals:
             clean[k] = str(profile[k])
-    if "treatment_lines" in profile:
-        clean["treatment_lines"] = str(profile["treatment_lines"])[:600]
+    for key, maximum in text_fields.items():
+        if key in profile:
+            if not isinstance(profile[key], str) or len(profile[key]) > maximum:
+                raise ValueError(f"{key} must be text of at most {maximum} characters.")
+            value = profile[key].strip()
+            if key == "next_followup" and value and date.fromisoformat(value).isoformat() != value:
+                raise ValueError("Follow-up date must use YYYY-MM-DD.")
+            clean[key] = value
     trial.profile = clean
+    _log(trial, "User-reported profile updated; answers remain unverified. Fields: " + ", ".join(sorted(profile)))
     db.commit()
 
 
