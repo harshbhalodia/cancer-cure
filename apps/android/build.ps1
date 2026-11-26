@@ -1,4 +1,4 @@
-# Builds AshaDeep.apk (sideload) and AshaDeep.aab (Google Play) without Gradle.
+﻿# Builds AshaDeep.apk (sideload) and AshaDeep.aab (Google Play) without Gradle.
 # Requires JDK17 + Android SDK (build-tools 36, platform 36) + bundletool.jar in %USERPROFILE%\.androidtools
 Set-Location $PSScriptRoot
 $T="$env:USERPROFILE\.androidtools"; $B="$T\sdk\build-tools\36.0.0"; $J=(Get-ChildItem -Dir "$T\jdk-17*")[0].FullName+"\bin"
@@ -9,7 +9,7 @@ Remove-Item build -Recurse -Force -EA 0; mkdir build\classes,build\dex | Out-Nul
 $V=Get-Content version.json -Raw | ConvertFrom-Json
 $L=@('-I',$A,'-A','assets','build\res.zip','--manifest','AndroidManifest.xml','--version-code',$V.versionCode,'--version-name',$V.versionName)
 & $J\javac -encoding UTF-8 -source 8 -target 8 -cp $A -d build\classes src\com\parivar\ashadeep\Main.java
-& $B\d8.bat --min-api 21 --lib $A --output build\dex (Get-ChildItem -Recurse build\classes\*.class).FullName
+& $B\d8.bat --min-api 24 --lib $A --output build\dex (Get-ChildItem -Recurse build\classes\*.class).FullName
 & $B\aapt2.exe compile --dir res -o build\res.zip
 # --- APK ---
 & $B\aapt2.exe link -o build\base.apk @L
