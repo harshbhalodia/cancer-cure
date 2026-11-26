@@ -150,7 +150,7 @@ export default function Inbox({ onChanged }: { onChanged: () => void }) {
               <li key={j.id}>
                 <div>
                   <strong>{j.filename}</strong>
-                  <div className="muted small">{j.kind === "research_brief" ? "Research brief generation or validation failed (saved sources are intact)" : j.kind === "ingest" ? "Couldn't be added" : j.kind === "ocr" ? "Couldn't read the scanned pages (pages already read are kept)" : "Couldn't be read by the AI"}: {j.error}</div>
+                  <div className="muted small">{j.kind === "research_brief" || j.kind === "research_cycle" ? "Research generation or validation failed (saved sources are intact)" : j.kind === "ingest" ? "Couldn't be added" : j.kind === "ocr" ? "Couldn't read the scanned pages (pages already read are kept)" : "Couldn't be read by the AI"}: {j.error}</div>
                 </div>
                 {j.kind !== "ingest" && <button onClick={() => api.retryJob(j.id).then(load)}>Retry</button>}
               </li>

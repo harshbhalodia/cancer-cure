@@ -120,7 +120,7 @@ export interface JobsSummary {
 }
 export interface Job {
   id: number;
-  kind: "ingest" | "analyze" | "ocr" | "journey" | "actions" | "meds" | "plan" | "vaccine" | "vaccine_eval" | "research_propose" | "research_review" | "research_brief";
+  kind: "ingest" | "analyze" | "ocr" | "journey" | "actions" | "meds" | "plan" | "vaccine" | "vaccine_eval" | "research_propose" | "research_review" | "research_brief" | "research_cycle";
   status: "queued" | "running" | "done" | "failed";
   filename: string;
   document_id: number | null;

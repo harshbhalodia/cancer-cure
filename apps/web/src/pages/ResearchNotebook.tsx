@@ -13,7 +13,24 @@ type Brief = {
     unanswered_questions?: string[]; desk_research_tasks?: string[];
   };
 };
-type Notebook = { sources: Source[]; briefs: Brief[]; disclaimer: string };
+type ResearchCycle = {
+  job_id: number; cycle: number; question: string; status: string; error: string;
+  result: {
+    brief?: Brief["result"]; detail?: string; validation?: string;
+    progress?: { additional_cited_passages: number };
+    critique?: {
+      model: string;
+      checks: { point_id: string; verdict: string; reason: string }[];
+      gaps: { question: string; source_ids: number[]; answerability: string }[];
+      next_question: string;
+    };
+  };
+};
+type ResearchLoop = {
+  id: number; question: string; sources: Source[]; fingerprint: string; max_cycles: number;
+  status: string; stop_reason: string; closed: boolean; cycles: ResearchCycle[];
+};
+type Notebook = { sources: Source[]; briefs: Brief[]; loops: ResearchLoop[]; disclaimer: string };
 
 async function request<T>(path: string, body?: object): Promise<T> {
   const response = await fetch(workspaceUrl(path.startsWith("/api/") ? path : `/api/research/notebook${path}`), body ? {
@@ -61,6 +78,27 @@ function briefText(brief: Brief): string {
   return lines.join("\n\n");
 }
 
+function BriefFindings({ result, sources }: { result: Brief["result"]; sources: Source[] }) {
+  return <>
+    {SECTIONS.map(([key, title]) => <div key={key}>
+      <h4>{title}</h4>
+      {!result[key]?.length && <p className="small muted">No supported point extracted from the selected excerpts.</p>}
+      {result[key]?.map((point, index) => {
+        const original = sources.find((item) => item.id === point.source_id);
+        return <div key={index}>
+          <p>{point.interpretation}</p>
+          <blockquote className="quote">{point.quote}</blockquote>
+          <p className="small muted">[S{point.source_id}] {original?.title} · {original?.kind} · {original?.as_of} · user-supplied, unverified</p>
+        </div>;
+      })}
+    </div>)}
+    <h4>Unanswered questions</h4><ul>{result.unanswered_questions?.map((text, i) => <li key={i}>{text}</li>)}</ul>
+    <h4>Desk-research tasks, not clinical or laboratory actions</h4><ul>{result.desk_research_tasks?.map((text, i) => <li key={i}>{text}</li>)}</ul>
+    <p className="small muted">{result.validation}</p>
+    <p className="small">{result.disclaimer}</p>
+  </>;
+}
+
 export default function ResearchNotebook() {
   const [data, setData] = useState<Notebook | null>(null);
   const [error, setError] = useState("");
@@ -73,7 +111,8 @@ export default function ResearchNotebook() {
   });
   const load = useCallback(async () => { setData(await request<Notebook>("")); }, []);
   useEffect(() => { void load().catch((e: Error) => setError(e.message)); }, [load]);
-  const pending = data?.briefs.some((brief) => ["queued", "running"].includes(brief.status)) ?? false;
+  const pending = (data?.briefs.some((brief) => ["queued", "running"].includes(brief.status)) ?? false)
+    || (data?.loops.some((loop) => loop.cycles.some((cycle) => ["queued", "running"].includes(cycle.status))) ?? false);
   useEffect(() => {
     if (!pending) return;
     const timer = setInterval(() => { void load().catch((e: Error) => setError(e.message)); }, 4000);
@@ -144,6 +183,67 @@ export default function ResearchNotebook() {
         await request<Brief>("/briefs", { question, source_ids: selected }); await load();
         setNotice("Local AI brief queued. Only the selected excerpts were snapshotted. This may take several minutes.");
       })}>Build source-grounded brief with local AI</button>
+      <div className="hint">
+        <h3>Reviewed research loop</h3>
+        <p>Selected sources → cited brief → critical reading → evidence gaps → your approval of the next question.</p>
+        <p className="small">Up to three cycles, with approval after each. Only the sources selected above are frozen and used. No web access, computational runs, treatment changes, self-modifying code or model training. Generated text never becomes a source.</p>
+        <p className="small">The critic is a second pass by the same local model, not an independent expert. It can miss mistakes. The loop stops on flagged interpretations, repeated questions, no additional cited passages or a need for new sources. These are reading checks, not medical progress scores.</p>
+        <button className="primary" disabled={busy || !selected.length || question.trim().length < 10} onClick={() => void run(async () => {
+          await request<ResearchLoop>("/loops", { question, source_ids: selected }); await load();
+          setNotice("Research loop started. Only cycle one is authorised; another cycle requires your approval.");
+        })}>Start reviewed research loop</button>
+      </div>
+      <h3>Saved research loops</h3>
+      <p className="small muted">Latest ten loops. Each retains its original sources, validated cycles, model identities and stop reason. Additional cycles do not create independent evidence.</p>
+      {!data.loops.length && <p>No reviewed research loops yet.</p>}
+      {data.loops.map((loop) => {
+        const latest = loop.cycles.at(-1);
+        return <article className="card" key={loop.id}>
+          <h4>Research loop #{loop.id} · {loop.status.replaceAll("_", " ")}</h4>
+          <p>{loop.question}</p>
+          <p className="small">Cycles: {loop.cycles.length}/{loop.max_cycles} · source fingerprint <code>{loop.fingerprint.slice(0, 16)}</code></p>
+          {loop.stop_reason && <p className="hint">{loop.stop_reason}</p>}
+          {loop.closed && <p>Loop closed. A running cycle may finish, but no further cycle can be approved.</p>}
+          {loop.cycles.map((cycle) => <details key={cycle.job_id} open={cycle.job_id === latest?.job_id}>
+            <summary><strong>Cycle {cycle.cycle} · {cycle.status}</strong></summary>
+            <p>{cycle.question}</p>
+            {cycle.status === "skipped" && <p>{cycle.result.detail}</p>}
+            {["queued", "running"].includes(cycle.status) && <p role="status">{cycle.result.detail ?? "Waiting for the local model."}</p>}
+            {cycle.status === "failed" && <div className="alert urgent" role="alert">
+              <p>{cycle.error}</p>
+              <p>No completed cycle or next-step approval is available. The frozen inputs are retained.</p>
+              {!loop.closed && <button disabled={busy} onClick={() => void run(async () => {
+                await request(`/api/jobs/${cycle.job_id}/retry`, {}); await load();
+              })}>Retry failed cycle {cycle.cycle}</button>}
+            </div>}
+            {cycle.status === "done" && cycle.result.brief && <>
+              <p className="small">Brief model: {cycle.result.brief.model} · critique model: {cycle.result.critique?.model}</p>
+              <p className="small">Additional cited passages: {cycle.result.progress?.additional_cited_passages}. This is source coverage, not new scientific evidence or patient benefit.</p>
+              <BriefFindings result={cycle.result.brief} sources={loop.sources} />
+              <h4>Model critique — review against originals</h4>
+              <ul>{cycle.result.critique?.checks.map((check) => <li key={check.point_id}><strong>{check.point_id} · {check.verdict}</strong>: {check.reason}</li>)}</ul>
+              <h4>Evidence gaps</h4>
+              <ul>{cycle.result.critique?.gaps.map((gap, i) => <li key={i}>{gap.question} <span className="muted small">[{gap.source_ids.map((id) => `S${id}`).join(", ")}] · {gap.answerability.replaceAll("_", " ")}</span></li>)}</ul>
+              <p className="small muted">{cycle.result.validation}</p>
+            </>}
+          </details>)}
+          {loop.status === "awaiting_approval" && latest?.result.critique && <div className="hint">
+            <strong>Proposed next question</strong>
+            <p>{latest.result.critique.next_question}</p>
+            <p className="small">Review the findings, critique and frozen sources first. Approval authorises one more local reading cycle, not a medical action.</p>
+            <button disabled={busy} onClick={() => void run(async () => {
+              await request(`/loops/${loop.id}/approve`, { previous_job_id: latest.job_id }); await load();
+              setNotice(`One further cycle approved for loop #${loop.id}.`);
+            })}>Approve next question and run one cycle</button>
+          </div>}
+          {!loop.closed && <button disabled={busy} onClick={() => void run(async () => {
+            await request(`/loops/${loop.id}/close`, {}); await load();
+          })}>Close loop #{loop.id}</button>}
+          <details><summary>Frozen sources for loop #{loop.id}</summary>
+            {loop.sources.map((item) => <div key={item.id}><strong>[S{item.id}] {item.title}</strong><p className="small">{item.kind} · {item.as_of} · unverified</p><pre className="draft">{item.text}</pre></div>)}
+          </details>
+        </article>;
+      })}
       <h3>Saved research briefs</h3>
       <p className="small muted">The latest 20 briefs are shown. Each retains the question, selected source versions and model output. A citation match does not prove that the interpretation is correct.</p>
       {!data.briefs.length && <p>No source-grounded briefs yet.</p>}
@@ -162,22 +262,7 @@ export default function ResearchNotebook() {
         {brief.status === "done" && <>
           <p className="small">Model: {brief.result.model} · saved {brief.created_at}</p>
           {!!brief.result.validation_repairs && <p className="small muted">The local model corrected an initial draft after validation feedback; the corrected draft passed all checks before saving.</p>}
-          {SECTIONS.map(([key, title]) => <div key={key}>
-            <h4>{title}</h4>
-            {!brief.result[key]?.length && <p className="small muted">No supported point extracted from the selected excerpts.</p>}
-            {brief.result[key]?.map((point, index) => {
-              const original = brief.sources.find((item) => item.id === point.source_id);
-              return <div key={index}>
-                <p>{point.interpretation}</p>
-                <blockquote className="quote">{point.quote}</blockquote>
-                <p className="small muted">[S{point.source_id}] {original?.title} · {original?.kind} · {original?.as_of} · user-supplied, unverified</p>
-              </div>;
-            })}
-          </div>)}
-          <h4>Unanswered questions</h4><ul>{brief.result.unanswered_questions?.map((text, i) => <li key={i}>{text}</li>)}</ul>
-          <h4>Desk-research tasks, not clinical or laboratory actions</h4><ul>{brief.result.desk_research_tasks?.map((text, i) => <li key={i}>{text}</li>)}</ul>
-          <p className="small muted">{brief.result.validation}</p>
-          <p className="small">{brief.result.disclaimer}</p>
+          <BriefFindings result={brief.result} sources={brief.sources} />
           <button disabled={busy} onClick={() => void run(async () => {
             await navigator.clipboard.writeText(briefText(brief)); setNotice("Brief copied for your review. Nothing was sent automatically.");
           })}>Copy brief for review before sharing</button>

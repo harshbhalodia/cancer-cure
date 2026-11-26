@@ -65,9 +65,11 @@ def save_source(db: Session, values: dict) -> dict:
     return source_dict(row)
 
 
-def queue_brief(db: Session, question: str, source_ids: list[int]) -> Job:
+def prepare_brief_payload(db: Session, question: str, source_ids: list[int]) -> dict:
     require_local_model()
     validate_question(question)
+    if not 1 <= len(source_ids) <= 8:
+        raise ValueError("Select between one and eight sources.")
     if len(set(source_ids)) != len(source_ids):
         raise ValueError("Select each source only once.")
     sources = []
@@ -80,10 +82,15 @@ def queue_brief(db: Session, question: str, source_ids: list[int]) -> Job:
         raise ValueError(f"Selected source text exceeds {MAX_CONTEXT} characters. Select fewer or shorter excerpts; nothing was silently truncated.")
     payload = {"question": question, "sources": sources}
     fingerprint = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return {**payload, "fingerprint": fingerprint}
+
+
+def queue_brief(db: Session, question: str, source_ids: list[int]) -> Job:
+    payload = prepare_brief_payload(db, question, source_ids)
     for job in db.query(Job).filter(Job.kind == "research_brief", Job.status.in_(("queued", "running"))):
-        if job.payload.get("fingerprint") == fingerprint:
+        if job.payload.get("fingerprint") == payload["fingerprint"]:
             raise ValueError("This source-grounded question is already queued or running.")
-    job = Job(kind="research_brief", filename="Local source-grounded research brief", payload={**payload, "fingerprint": fingerprint})
+    job = Job(kind="research_brief", filename="Local source-grounded research brief", payload=payload)
     db.add(job)
     db.commit()
     return job

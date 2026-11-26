@@ -28,6 +28,7 @@ from app.services import vaccine as vaccine_svc
 from app.services import workspaces
 from app.services import research
 from app.services import research_notebook
+from app.services import research_loops
 
 log = logging.getLogger("cc.jobs")
 
@@ -313,6 +314,8 @@ def _run_research_ai(db: Session, job: Job) -> None:
         job.result = research.draft_scenarios(db, job.payload["source_run_id"])
     elif job.kind == "research_brief":
         job.result = research_notebook.build_brief(job.payload)
+    elif job.kind == "research_cycle":
+        research_loops.run_cycle(db, job)
     else:
         job.result = research.review_experiment(db, job.payload["experiment_id"])
 
@@ -493,7 +496,7 @@ def run_one(db: Session) -> bool:
     runner = {"ingest": _run_ingest, "analyze": _run_analyze, "ocr": _run_ocr, "journey": _run_journey,
               "actions": _run_actions, "meds": _run_meds, "plan": _run_plan, "vaccine": _run_vaccine, "vaccine_eval": _run_vaccine_eval,
               "research_propose": _run_research_ai, "research_review": _run_research_ai,
-              "research_brief": _run_research_ai}[job.kind]
+              "research_brief": _run_research_ai, "research_cycle": _run_research_ai}[job.kind]
     try:
         runner(db, job)
         job.status = "done"

@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Event, Job, VaccineRun
-from app.research_models import ResearchEvidence, ResearchExperiment, ResearchSource
-from app.services import research, research_notebook
+from app.research_models import ResearchEvidence, ResearchExperiment, ResearchLoop, ResearchSource
+from app.services import research, research_loops, research_notebook
 
 router = APIRouter(prefix="/api/research")
 
@@ -49,6 +49,7 @@ def get_notebook(db: Session = Depends(get_db)) -> dict:
         "sources": [research_notebook.source_dict(row) for row in sources],
         "briefs": [research_notebook.brief_dict(job) for job in briefs],
         "disclaimer": research_notebook.DISCLAIMER,
+        "loops": [research_loops.loop_dict(db, row) for row in db.query(ResearchLoop).order_by(ResearchLoop.id.desc()).limit(10)],
     }
 
 
@@ -66,6 +67,47 @@ def create_notebook_brief(body: NotebookBriefIn, db: Session = Depends(get_db)) 
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     return research_notebook.brief_dict(job)
+
+
+class CycleApprovalIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    previous_job_id: StrictInt = Field(gt=0)
+
+
+@router.post("/notebook/loops", status_code=202)
+def create_research_loop(body: NotebookBriefIn, db: Session = Depends(get_db)) -> dict:
+    try:
+        loop = research_loops.create_loop(db, body.question, body.source_ids)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except research_loops.LoopConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return research_loops.loop_dict(db, loop)
+
+
+@router.post("/notebook/loops/{loop_id}/approve", status_code=202)
+def approve_research_cycle(loop_id: int, body: CycleApprovalIn, db: Session = Depends(get_db)) -> dict:
+    loop = db.get(ResearchLoop, loop_id)
+    if loop is None:
+        raise HTTPException(404, "Research loop not found in this workspace.")
+    try:
+        research_loops.approve_next(db, loop, body.previous_job_id)
+    except research_loops.LoopConflict as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return research_loops.loop_dict(db, loop)
+
+
+@router.post("/notebook/loops/{loop_id}/close")
+def close_research_loop(loop_id: int, db: Session = Depends(get_db)) -> dict:
+    loop = db.get(ResearchLoop, loop_id)
+    if loop is None:
+        raise HTTPException(404, "Research loop not found in this workspace.")
+    research_loops.close_loop(db, loop)
+    return research_loops.loop_dict(db, loop)
 
 
 class EvidenceIn(BaseModel):

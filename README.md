@@ -82,6 +82,32 @@ silently truncating evidence. Sources are append-only; save dated corrections as
 Briefs retain frozen copies of their sources, model identity and an input fingerprint; the latest twenty
 are shown, with progress and errors. Review before copying a brief; sharing is never automatic.
 
+### Reviewed local research loops
+
+Select local notebook sources and enter a research question, then choose **Start reviewed research loop**.
+One cycle creates a cited brief and asks the local model for a separate critical reading of every
+extracted point, source-linked evidence gaps and a proposed next question. The critique is a second pass
+by the same model, **not independent verification or clinical validation**.
+
+Review the saved cycle and original excerpts before choosing **Approve next question and run one cycle**.
+Each approval authorises exactly one further cycle; duplicate or stale approvals are rejected.
+There are at most three cycles per loop. The loop stops on flagged interpretations, a repeated question,
+no additional cited source passages, no next question, or a gap requiring new sources. Add reviewed
+excerpts and start a new loop when the evidence base needs to change. Re-reading unchanged material
+cannot establish new scientific evidence, a treatment benefit or a cure.
+
+Loops freeze their sources, retain cycle results and model identities, and remain patient-isolated.
+Failed cycles can be retried with their original inputs; **Close loop** prevents further approvals
+(a running cycle may finish; a queued cycle is explicitly skipped). Duplicate loops with identical questions and sources are rejected.
+The notebook shows the latest ten loops, including their stop reasons and source-coverage counts.
+These counts are not efficacy or clinical-progress measures.
+
+Only the selected local excerpts are used. There is no web discovery, implicit access to the case file,
+automatic computational execution, laboratory work, treatment change, self-modifying code or model training.
+Generated briefs and critiques never become new evidence sources. Source attribution/format and safety
+failures get at most one correction per brief or critique and are fully revalidated; persistent failures
+remain explicit failed jobs, without automatically starting another cycle.
+
 This supports reading and computational research **not** in-house vaccine development. A study-centre's
 tissue requirements cannot be bypassed with software. Possible treatment-related necrosis is not a confirmed
 pathology finding, and omitted variant wording is not an eligibility decision. The neoantigen pipeline is
