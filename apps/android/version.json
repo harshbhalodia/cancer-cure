@@ -1,6 +1,6 @@
 {
-  "versionCode": 6,
-  "versionName": "1.5",
+  "versionCode": 7,
+  "versionName": "1.6",
   "apkUrl": "https://github.com/harshbhalodia/cancer-cure/raw/main/apps/android/AshaDeep.apk",
-  "notes": "Fix Google Analytics (serve app over https origin)"
+  "notes": "Check for updates whenever app is reopened"
 }

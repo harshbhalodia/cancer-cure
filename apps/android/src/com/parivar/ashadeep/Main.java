@@ -43,6 +43,7 @@ public class Main extends Activity {
   }
 
   @Override protected void onPause() { super.onPause(); w.evaluateJavascript("pauseAll()", null); }
+  @Override protected void onResume() { super.onResume(); if (w != null) w.evaluateJavascript("window.checkUpdate&&checkUpdate()", null); }
   @Override protected void onDestroy() { if (sr != null) sr.destroy(); tts.shutdown(); super.onDestroy(); }
 
   void js(String fn, String arg) {
