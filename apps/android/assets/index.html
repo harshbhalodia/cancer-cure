@@ -15,7 +15,8 @@ button{font-size:24px;padding:14px 34px;border:0;border-radius:40px;background:#
 <div id="hud"><span>🪔 <b id="sc">0</b></span><span id="lv"></span><span id="up" onclick="doUpdate()"></span><span id="mu" onclick="toggleMusic()">🎵</span></div>
 <div id="msg"></div><canvas id="c"></canvas><div id="mic" onclick="listen()">🎤</div><div id="brand"></div>
 <div class="scr" id="start"><div class="big">🪔</div><div class="t" id="title"></div><div class="s" id="howto"></div>
- <button id="bRes" onclick="go(true)"></button><button id="bNew" onclick="go(false)"></button><div class="s" id="stats"></div></div>
+ <button id="bRes" onclick="go(true)"></button><button id="bNew" onclick="go(false)"></button><div class="s" id="stats"></div>
+ <div class="s" id="moodq">આજે મન કેવું છે? <span onclick="mood(1)">😊</span> <span onclick="mood(2)">🙂</span> <span onclick="mood(3)">😔</span></div></div>
 <div class="scr" id="mid" style="display:none"><div class="big" id="mf"></div><div class="t" id="mt"></div><div class="s" id="br"></div>
  <button id="bNext" onclick="next()"></button></div>
 <script src="config.js"></script>
@@ -51,14 +52,14 @@ function tone(f,at,dur,v,type,lp,vib){const o=ac.createOscillator(),g=ac.createG
 // Text-to-speech reply in selected language (emojis removed)
 function speak(s){if(A&&A.speak)A.speak(s.replace(/\p{Extended_Pictographic}|\uFE0F|\u200D/gu,''),C.lang=='en'?'en-IN':'gu-IN')}
 // Stage worlds: each level changes background, items and music
-let ST=C.stages[0];function stage(talk){ST=C.stages[(lv-1)%C.stages.length];document.body.style.background=ST.bg;S.mus=ST.music;save();
+let ST=C.stages[0];function stage(talk){ST=C.stages[(lv-1)%C.stages.length];document.body.style.background=ST.bg;S.mus=ST.music;save();track(lv-1);
  $('lv').textContent=L.level+' '+lv;say(ST.name);if(talk)speak(L.replies.stage+' '+ST.name)}
 function bell(f,at,v){if(!ac||!musicOn)return;at=at||ac.currentTime;const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;g.gain.setValueAtTime(v||.15,at);g.gain.exponentialRampToValueAtTime(.001,at+2);o.connect(g);g.connect(mg);o.start(at);o.stop(at+2)}
-function toggleMusic(){musicOn=!musicOn;$('mu').textContent=musicOn?'🎵':'🔇';if(ac)musicOn?ac.resume():ac.suspend()}
-function vol(d){S.vol=Math.min(.6,Math.max(.03,S.vol+d));if(mg)mg.gain.value=S.vol;say((d>0?'🔊 ':'🔉 ')+Math.round(S.vol*100/.6)+'%');save()}
+function toggleMusic(){musicOn=!musicOn;$('mu').textContent=musicOn?'🎵':'🔇';if(ac)musicOn?ac.resume():ac.suspend();if(bh.src)musicOn?bh.play().catch(()=>{}):bh.pause()}
+function vol(d){S.vol=Math.min(.6,Math.max(.03,S.vol+d));if(mg)mg.gain.value=S.vol*(bh.src?.25:1);bh.volume=Math.min(1,S.vol/.6);say((d>0?'🔊 ':'🔉 ')+Math.round(S.vol*100/.6)+'%');save()}
 // ---- Game ----
-function pauseAll(){if(ac)ac.suspend();if(run){paused=true;run=false}endSession()}
-function resume(){if(!paused)return;paused=false;run=true;if(musicOn&&ac)ac.resume();t0=t0||Date.now();loop()}
+function pauseAll(){if(ac)ac.suspend();bh.pause();if(run){paused=true;run=false}endSession()}
+function resume(){if(!paused)return;paused=false;run=true;if(musicOn&&ac){ac.resume();if(bh.src)bh.play().catch(()=>{})}t0=t0||Date.now();loop()}
 function go(res){music();$('start').style.display='none';lv=res?S.lv:1;if(!res){S.spd=1}score=res?S.score||0:0;
  $('sc').textContent=score;caught=miss=0;items=[];run=true;t0=Date.now();stage(true);if(res)say(L.welcome);loop()}
 function next(){$('mid').style.display='none';caught=miss=0;items=[];run=true;stage(true);if(musicOn)ac.resume();loop()}
@@ -75,19 +76,27 @@ function loop(){if(!run)return;t++;x.clearRect(0,0,W,H);
  x.font='64px sans-serif';x.fillText(C.player,px,py+20);requestAnimationFrame(loop)}
 function levelUp(){run=false;
  // Adaptive: struggling -> slow down; doing great -> slightly faster (bounded)
- S.spd=Math.min(1.4,Math.max(.6,S.spd+(miss>5?-.1:miss<1.5?.05:0)));
+ S.spd=Math.min(1.4,Math.max(.6,S.spd+(miss>5?-.1:miss<1.5?.05:0)));ev('level_up',{level:lv,misses:Math.round(miss),speed:S.spd});
  const f=L.family[(lv-1)%L.family.length];lv++;S.lv=lv;S.score=score;S.last=Date.now();save();
  $('lv').textContent=L.level+' '+lv;$('mf').textContent=f[0];$('mt').innerHTML='<b>'+f[1]+'</b><br>'+f[2];speak(f[1]+'. '+f[2]);bell(648);bell(864,ac.currentTime+.3);
  const b=$('br');let k=0;clearInterval(b.i);b.textContent=L.breath[0];b.i=setInterval(()=>b.textContent=L.breath[++k%3],2500);$('mid').style.display='flex'}
 // ---- Analytics (local; optionally sent to hospital) ----
 function endSession(){if(!t0)return;const r={d:new Date().toISOString(),min:+((Date.now()-t0)/6e4).toFixed(1),lv,score,voice:voiceN,hospital:C.brand.hospital};t0=0;voiceN=0;
- if(r.min<.1)return;S.sessions.push(r);S.sessions=S.sessions.slice(-200);save();
- if(C.analyticsUrl)fetch(C.analyticsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)}).catch(()=>{})}
+ if(r.min<.1)return;S.sessions.push(r);S.sessions=S.sessions.slice(-200);save();ev('session_end',{minutes:r.min,level:lv,score,voice:r.voice})}
+// Analytics: anonymous install id; GA4 Measurement Protocol and/or hospital endpoint
+function ev(name,p){p=Object.assign({app_version:A?A.versionName():'web',hospital:C.brand.hospital||'none',lang:C.lang,engagement_time_msec:1},p||{});
+ const g=C.ga4;if(g.measurementId&&g.apiSecret)fetch('https://www.google-analytics.com/mp/collect?measurement_id='+g.measurementId+'&api_secret='+g.apiSecret,{method:'POST',body:JSON.stringify({client_id:S.cid,events:[{name,params:p}]})}).catch(()=>{});
+ if(C.analyticsUrl)fetch(C.analyticsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({install:S.cid,event:name,t:new Date().toISOString(),...p})}).catch(()=>{})}
+function mood(m){ev('mood',{mood:m});$('moodq').innerHTML={1:'😊 ખૂબ સરસ!',2:'🙂 ચાલો મજા કરીએ!',3:'🤗 અમે તમારી સાથે છીએ!'}[m]}
+// Real bhajan/dayro playlist (optional, from config)
+const bh=new Audio();bh.onended=()=>track(++S.bi);
+function track(i){if(!C.bhajans.length||!musicOn)return;S.bi=i;bh.src=C.bhajans[i%C.bhajans.length];bh.volume=Math.min(1,S.vol/.6);bh.play().catch(()=>{});if(mg)mg.gain.value=S.vol*.25}
 // ---- Voice ----
 function listen(){if(!A)return say('🎤 ✖');say(L.listening);A.listen(C.lang=='en'?'en-IN':'gu-IN')}
 function onVoice(txt){voiceN++;txt=(txt||'').toLowerCase();const V=L.voice,E=C.text.en.voice,has=k=>(V[k]||[]).concat(E[k]).some(w=>txt.includes(w));
  say(L.heard+txt);const R=L.replies,k=['volup','voldown','bhajan','music','theme','slow','fast','pause','stop','start'].find(has);speak(R[k=='stop'?'pause':k]||R.none);
- if(k=='bhajan'){S.mus=[3,4,5][Math.random()*3|0];save();say('🦚 '+C.music[S.mus].name)}else
+ if(k)ev('voice',{cmd:k});
+ if(k=='bhajan'){if(C.bhajans.length)track((S.bi||0)+1);else{S.mus=[3,4,5,6,7,8,9,10][Math.random()*8|0];save();say('🦚 '+C.music[S.mus].name)}}else
  if(has('volup'))vol(.08);else if(has('voldown'))vol(-.08);
  else if(has('music')){S.mus++;save();say('🎵 '+C.music[S.mus%C.music.length].name)}
  else if(has('theme')){S.theme++;theme();save()}
@@ -100,10 +109,11 @@ let upd;function checkUpdate(){if(!A||!C.updateUrl)return;fetch(C.updateUrl+'?t=
 function doUpdate(){if(upd)A.openUrl(upd.apkUrl)}
 // ---- Init ----
 theme();document.title=C.brand.app;$('title').innerHTML='<b>'+C.brand.app+'</b><br>'+C.brand.tagline;$('howto').innerHTML=L.howto.replace('{p}',C.player);
-$('brand').textContent=C.brand.hospital+(A?' • v'+A.versionName():'');$('bNew').textContent=L.start;$('bNext').textContent=L.next;$('lv').textContent=L.level+' 1';
+$('brand').textContent=(C.brand.hospital||C.brand.footer)+(A?' • v'+A.versionName():'');$('bNew').textContent=L.start;$('bNext').textContent=L.next;$('lv').textContent=L.level+' 1';
 // Smart resume: after a long break (3+ days) restart one level lower to ease back in
 if(S.lv>1){if(S.last&&Date.now()-S.last>2592e5)S.lv=Math.max(1,S.lv-1);$('bRes').textContent=L.resume.replace('{n}',S.lv)}else $('bRes').style.display='none';
 const today=new Date().toISOString().slice(0,10),td=S.sessions.filter(s=>s.d.startsWith(today));
 $('stats').textContent=L.stats.replace('{m}',td.reduce((a,s)=>a+s.min,0).toFixed(0)).replace('{s}',S.sessions.length);
+if(!S.cid){S.cid=Date.now()+'.'+(Math.random()*1e9|0);save();ev('first_open')}ev('app_open',{sessions:S.sessions.length,level:S.lv});
 checkUpdate();
 </script></body></html>

@@ -1,93 +1,112 @@
 // ===== AshaDeep configuration: edit this file to rebrand / re-language / retune =====
 window.CFG = {
-  brand: { hospital: "આપની હોસ્પિટલ", app: "આશાદીપ", tagline: "પરિવારનો પ્રેમ, જીવનની શક્તિ" },
-  lang: "gu",                 // "gu" or "en" (add more blocks below); also used for voice: gu-IN / en-IN
+  brand: { hospital: "", app: "આશાદીપ", footer: "AshaDeep", tagline: "પરિવારનો પ્રેમ, જીવનની શક્તિ" },
+  lang: "gu",                 // "gu" or "en"; also used for voice: gu-IN / en-IN
   updateUrl: "https://raw.githubusercontent.com/harshbhalodia/cancer-cure/main/apps/android/version.json",
-  analyticsUrl: "",           // optional hospital endpoint: POST JSON session records
+  analyticsUrl: "",           // optional hospital endpoint: POST JSON per event
+  ga4: { measurementId: "", apiSecret: "" },   // Google Analytics 4 (Measurement Protocol). Empty = off
   player: "👨",
-  good: ["🪔", "❤️", "🌸", "⭐", "🙏"], bad: "☁️",
-  themes: [
-    "linear-gradient(#1a2a6c,#b21f1f55,#fdbb2d)",
-    "linear-gradient(#0f3443,#34e89e)",
-    "linear-gradient(#41295a,#2F0743,#f8b500)",
-    "linear-gradient(#ff7e5f,#feb47b)"
-  ],
-  // music presets (original synthesized audio). chords = soft pad; raga = devotional mode:
-  // tanpura drone on Sa (Hz) + bansuri-like melody over scale ratios + manjira
+  // Real bhajan / dayro recordings (that you have rights to). Local: put mp3 in assets/music and write "music/x.mp3".
+  // Remote: full https URL to an mp3. Track changes every stage and on voice "ભજન". Empty = synthesized music only.
+  bhajans: [],
+  themes: ["linear-gradient(#1a2a6c,#b21f1f55,#fdbb2d)","linear-gradient(#0f3443,#34e89e)","linear-gradient(#41295a,#2F0743,#f8b500)","linear-gradient(#ff7e5f,#feb47b)"],
+  // music: chords = soft pad; raga = tanpura drone + bansuri melody (+ manjira / temple bell). All original synthesized audio.
   music: [
     { name: "શાંતિ", chords: [[216,272,324],[192,242,288],[162,204,243],[182,229,272]] },
     { name: "પ્રભાત", chords: [[264,330,396],[297,371,445],[220,277,330],[247,311,370]] },
     { name: "ધ્યાન", chords: [[144,216,288],[128,192,256],[162,243,324],[144,216,288]] },
-    { name: "શ્રીનાથજી ભજન (ભૂપાલી)", raga: { sa: 261.6, scale: [1,9/8,5/4,3/2,5/3,2,9/4], manjira: true } },
+    { name: "શ્રીનાથજી ઝાંખી (ભૂપાલી)", raga: { sa: 261.6, scale: [1,9/8,5/4,3/2,5/3,2,9/4], manjira: true } },
     { name: "હવેલી કીર્તન (યમન)", raga: { sa: 293.7, scale: [1,9/8,5/4,45/32,3/2,5/3,15/8,2], manjira: true } },
-    { name: "સાંજ આરતી (દુર્ગા)", raga: { sa: 220, scale: [1,9/8,4/3,3/2,5/3,2], manjira: true, bell: true } }
+    { name: "સાંજ આરતી (દુર્ગા)", raga: { sa: 220, scale: [1,9/8,4/3,3/2,5/3,2], manjira: true, bell: true } },
+    { name: "મંગળા દર્શન (ભૈરવ)", raga: { sa: 246.9, scale: [1,16/15,5/4,4/3,3/2,8/5,15/8,2], bell: true } },
+    { name: "રાજભોગ (દેશ)", raga: { sa: 277.2, scale: [1,9/8,5/4,4/3,3/2,5/3,16/9,2], manjira: true } },
+    { name: "શયન (માલકૌંસ)", raga: { sa: 207.7, scale: [1,6/5,4/3,8/5,9/5,2] } },
+    { name: "ગોકુળ (પહાડી)", raga: { sa: 261.6, scale: [1,9/8,5/4,3/2,5/3,2], manjira: true } },
+    { name: "ડાયરો તાલ (કાફી)", raga: { sa: 233.1, scale: [1,9/8,6/5,4/3,3/2,5/3,9/5,2], manjira: true, bell: true } },
+    { name: "શિવરંજની", raga: { sa: 220, scale: [1,9/8,6/5,3/2,5/3,2] } },
+    { name: "હંસધ્વનિ", raga: { sa: 293.7, scale: [1,9/8,5/4,3/2,15/8,2], manjira: true } },
+    { name: "સંધ્યા", chords: [[196,247,294],[175,220,262],[165,208,247],[147,185,220]] }
   ],
-  // Each level moves to the next world: background, items, enemy and music change to avoid boredom
+  // 20 worlds; each level moves to the next one (background, items, obstacle, music)
   stages: [
     { name: "🏡 ઘરનું આંગણું", bg: "linear-gradient(#1a2a6c,#b21f1f55,#fdbb2d)", good: ["🪔","❤️","🌸","⭐"], bad: "☁️", music: 0 },
     { name: "🦚 શ્રીનાથજી હવેલી", bg: "linear-gradient(#4a0072,#c2185b,#ffb300)", good: ["🦚","🪈","🧈","🌺","🪔"], bad: "🌧️", music: 3 },
     { name: "🌳 બગીચો", bg: "linear-gradient(#134e5e,#71b280)", good: ["🌼","🦋","🍎","🌻"], bad: "🐝", music: 1 },
     { name: "🛕 સાંજ આરતી", bg: "linear-gradient(#ff512f,#dd2476,#2b1055)", good: ["🔔","🪔","🥥","🌺","🙏"], bad: "💨", music: 5 },
     { name: "🌙 તારાઓનું આકાશ", bg: "linear-gradient(#000428,#004e92)", good: ["⭐","🌙","✨","🌟"], bad: "☄️", music: 2 },
-    { name: "🌊 ગોમતી ઘાટ", bg: "linear-gradient(#2193b0,#6dd5ed)", good: ["🐚","🪷","🐟","🪔"], bad: "🌪️", music: 4 }
+    { name: "🌊 ગોમતી ઘાટ", bg: "linear-gradient(#2193b0,#6dd5ed)", good: ["🐚","🪷","🐟","🪔"], bad: "🌪️", music: 4 },
+    { name: "🌅 મંગળા દર્શન", bg: "linear-gradient(#f83600,#f9d423)", good: ["🌅","🪔","🌸","🔔"], bad: "🌫️", music: 6 },
+    { name: "🐄 ગોકુળ ગામ", bg: "linear-gradient(#56ab2f,#a8e063)", good: ["🐄","🥛","🧈","🪈"], bad: "🐍", music: 9 },
+    { name: "🪁 ઉત્તરાયણ", bg: "linear-gradient(#36d1dc,#5b86e5)", good: ["🪁","🍬","🥜","☀️"], bad: "✂️", music: 1 },
+    { name: "🪔 દિવાળી", bg: "linear-gradient(#200122,#6f0000)", good: ["🪔","🎆","🍬","💰","✨"], bad: "💥", music: 10 },
+    { name: "💃 નવરાત્રી ગરબો", bg: "linear-gradient(#ee0979,#ff6a00)", good: ["🥁","🌺","🪘","💃","🔱"], bad: "🌀", music: 10 },
+    { name: "🌾 ખેતર", bg: "linear-gradient(#e6dada,#f7b733,#6a9113)", good: ["🌾","🌽","🥭","🚜"], bad: "🐀", music: 7 },
+    { name: "🏏 ક્રિકેટ મેદાન", bg: "linear-gradient(#11998e,#38ef7d)", good: ["🏏","🏆","🎯","⭐"], bad: "🦆", music: 12 },
+    { name: "🍛 રસોડું", bg: "linear-gradient(#f12711,#f5af19)", good: ["🍛","🫓","🥭","🍵"], bad: "🌶️", music: 13 },
+    { name: "⛰️ ગિરનાર", bg: "linear-gradient(#3e5151,#decba4)", good: ["🛕","🚩","🙏","🌄"], bad: "🪨", music: 11 },
+    { name: "🌧️ ચોમાસું", bg: "linear-gradient(#4b6cb7,#182848)", good: ["☔","🌈","🐸","🌿"], bad: "⚡", music: 8 },
+    { name: "✈️ દીકરાનો દેશ", bg: "linear-gradient(#0052d4,#65c7f7,#9cecfb)", good: ["✈️","📱","🎁","❤️"], bad: "🌩️", music: 13 },
+    { name: "🎡 મેળો", bg: "linear-gradient(#fc466b,#3f5efb)", good: ["🎡","🍭","🎈","🧸"], bad: "🎃", music: 12 },
+    { name: "🌸 વસંત", bg: "linear-gradient(#ffafbd,#ffc3a0)", good: ["🌸","🌷","🐦","🍃"], bad: "🥀", music: 4 },
+    { name: "👑 રાજભોગ દર્શન", bg: "linear-gradient(#b8860b,#ffd700,#8b0000)", good: ["👑","🦚","🍯","🪷","🪔"], bad: "🌑", music: 7 }
   ],
   text: {
     gu: {
       start: "▶ નવેસરથી રમો", resume: "⏯ સ્તર {n} થી આગળ રમો", next: "આગળ ▶", level: "સ્તર",
-      howto: "{p} તમે છો પરિવારના મોભી.<br>આંગળીથી ખસેડો અને<br>🪔 ❤️ 🌸 ⭐ પકડો.<br>☁️ કાળા વાદળથી બચો.<br>🎤 બોલો: શરૂ, થોભો, ધીમે, અવાજ વધારો, સંગીત બદલો, ભજન, રંગ બદલો",
-      welcome: "ફરી સ્વાગત છે! 🙏", miss: "ચિંતા નહીં, ફરી પ્રયત્ન કરો 🙂", heard: "🎤 સાંભળ્યું: ",
-      listening: "🎤 બોલો...", update: "⬆ નવું", stats: "આજે {m} મિનિટ • કુલ {s} વખત રમ્યા",
+      howto: "{p} તમે છો પરિવારના મોભી.<br>આંગળીથી ખસેડો અને વસ્તુઓ પકડો.<br>નીચેની ખરાબ વસ્તુથી બચો.<br>🎤 બોલો: શરૂ, થોભો, ધીમે, અવાજ વધારો, સંગીત બદલો, ભજન, રંગ બદલો",
+      welcome: "ફરી સ્વાગત છે! 🙏", miss: "અરે! ચાલો ફરી 😄", heard: "🎤 સાંભળ્યું: ",
+      listening: "🎤 બોલો, હું સાંભળું છું...", update: "⬆ નવું", stats: "આજે {m} મિનિટ • કુલ {s} વખત રમ્યા",
       breath: ["🌬️ ઊંડો શ્વાસ લો...", "😌 રોકો...", "🍃 ધીમેથી છોડો..."],
       family: [
-        ["👴👵","બાપુજી અને બા","બેટા, તું અમારો સિંહ છે. હિંમત રાખ, ભગવાન તારી સાથે છે. 🙏"],
+        ["👴👵","બાપુજી અને બા","બેટા, તું અમારો સિંહ છે. તારા પર અમને ગર્વ છે! 🙏"],
         ["👨‍✈️✈️","વિદેશથી દીકરો","પપ્પા, હું દૂર છું પણ દિલથી હંમેશા તમારી પાસે છું. જલ્દી મળીશું! ❤️"],
-        ["👦","પૌત્ર","દાદા, તમે મારા હીરો છો! સાથે રમવા જલ્દી સાજા થઈ જાઓ. 🏏"],
-        ["👨‍👩‍👧‍👦","પિતરાઈ ભાઈ-બહેન","આખો પરિવાર તમારા માટે પ્રાર્થના કરે છે. તમે એકલા નથી! 🌸"],
-        ["👩","જીવનસાથી","દરરોજ થોડા વધુ મજબૂત. આપણે સાથે જીતીશું. 💪"],
-        ["📱","દીકરાનો વીડિયો કૉલ","પપ્પા, તમારું હસતું મોઢું જોઈને મારો દિવસ બની જાય છે! 😊"],
-        ["👧","પૌત્રી","દાદા, મેં તમારા માટે ચિત્ર બનાવ્યું છે. જલ્દી ઘરે આવો! 🎨"],
-        ["🏡","આખું ઘર","ઘરનું આંગણું તમારી રાહ જુએ છે. તહેવાર સાથે ઉજવીશું! 🎉"],
-        ["🌅","નવી સવાર","દરેક સૂર્યોદય નવી આશા લાવે છે. તમે જીતી રહ્યા છો! ⭐"]
+        ["👦","પૌત્ર","દાદા, તમે મારા હીરો છો! આજે સાંજે ક્રિકેટ રમીશું? 🏏"],
+        ["👨‍👩‍👧‍👦","પિતરાઈ ભાઈ-બહેન","તમારા વગર પરિવારનો મેળાવડો અધૂરો છે! 🌸"],
+        ["👩","જીવનસાથી","તમારું હાસ્ય આખા ઘરને અજવાળે છે. 💛"],
+        ["📱","દીકરાનો વીડિયો કૉલ","પપ્પા, તમારી વાતો સાંભળીને મારો દિવસ બની જાય છે! 😊"],
+        ["👧","પૌત્રી","દાદા, મેં તમારા માટે ચિત્ર બનાવ્યું છે. જોવા આવશો ને? 🎨"],
+        ["🏡","આખું ઘર","આ વખતે તહેવાર તમે જ શરૂ કરાવશો! 🎉"],
+        ["🧑‍🤝‍🧑","જૂના મિત્રો","ચાલો, ચાની કીટલી પર જૂની વાતો કરીએ! ☕"],
+        ["🐄","ગામ","ગામનું ચોરો તમારી વાર્તાઓની રાહ જુએ છે. 🌳"],
+        ["🌅","નવી સવાર","દરેક સૂર્યોદય નવી ખુશી લાવે છે. ⭐"]
       ],
       quotes: [
-        "હિંમત એ જ દવા છે 💪","દીકરો વીડિયો કૉલ પર રાહ જુએ છે 📱","શાબાશ! 👏","પરિવાર તમારી તાકાત છે ❤️",
-        "જય શ્રી કૃષ્ણ 🙏","દરેક દિવસ એક જીત છે 🌟","હસતા રહો, સાજા થાઓ 😊","તમે યોદ્ધા છો ⚔️",
-        "ધીરજ રાખો, સારા દિવસો આવશે 🌈","તમારું સ્મિત ઘરનો દીવો છે 🪔","ભગવાન પર ભરોસો રાખો 🙏",
-        "એક શ્વાસ, એક પગલું, એક જીત 👣","પૌત્ર તમારી સાથે ક્રિકેટ રમવા રાહ જુએ છે 🏏","તમે ધાર્યું તે કરી શકો છો ✨",
-        "આજનો દિવસ ગઈકાલ કરતાં સારો 🌻","શરીર સાજું થાય છે, મન મજબૂત છે 🧘","બધાના આશીર્વાદ તમારી સાથે છે 🤲",
-        "અંધારા પછી અજવાળું આવે જ છે 🌄","તમારી હિંમત બધાને પ્રેરણા આપે છે 🔥","ખૂબ સરસ! આગળ વધો 🚀",
-        "જય માતાજી 🙏","દવા સાથે દુઆ પણ કામ કરે છે 💊❤️","દીકરો કહે છે: આઈ લવ યુ પપ્પા ❤️"
+        "વાહ! શું પકડ છે! 👏","પરિવાર તમારી તાકાત છે ❤️","જય શ્રીનાથજી 🙏","જય શ્રી કૃષ્ણ 🙏","તમે તો ચેમ્પિયન છો 🏆",
+        "દીકરો તમારી વાટ જુએ છે 📱","આજનો દિવસ તમારો છે 🌟","તમારું સ્મિત ઘરનો દીવો છે 🪔","એક પગલું, એક જીત 👣",
+        "પૌત્ર તમારી સાથે ક્રિકેટ રમવા રાહ જુએ છે 🏏","તમે ધાર્યું તે કરી શકો છો ✨","બધાના આશીર્વાદ તમારી સાથે છે 🤲",
+        "અંધારા પછી અજવાળું આવે જ છે 🌄","તમારી હિંમત બધાને પ્રેરણા આપે છે 🔥","ખૂબ સરસ! આગળ વધો 🚀","જય માતાજી 🙏",
+        "દીકરો કહે છે: આઈ લવ યુ પપ્પા ❤️","મોભી હોય તો આવા! 💪","તમારી વાર્તાઓ સાંભળવા બધા આતુર છે 📖",
+        "શ્રીનાથજીની કૃપા અપાર છે 🦚","મન પ્રસન્ન, દિવસ પ્રસન્ન 😊","શાબાશ! બધા તાળી પાડે છે 👏","તમારા અનુભવનો ખજાનો અમૂલ્ય છે 💎",
+        "આજે તો કમાલ કરી! 🎉","ઘરમાં તમારો અવાજ સંગીત જેવો છે 🎶","દુનિયા તમારા હાથમાં છે 🌍","તમે બોલો, અમે સાંભળીએ 👂"
       ],
-      // voice keywords (any match). Lowercase English always also accepted.
       voice: { start:["શરૂ","ચાલુ"], stop:["બંધ"], pause:["થોભ","રોક","ઉભા"], slow:["ધીમ"], fast:["ઝડપ","જલ્દી"],
-               volup:["અવાજ વધાર","મોટ","વધાર"], voldown:["અવાજ ઘટાડ","ધીર","ઓછ"], bhajan:["ભજન","શ્રીનાથ","ભગવાન","કીર્તન","આરતી"],
+               volup:["અવાજ વધાર","મોટ","વધાર"], voldown:["અવાજ ઘટાડ","ધીર","ઓછ"], bhajan:["ભજન","શ્રીનાથ","ભગવાન","કીર્તન","આરતી","ડાયરો","ઝાંખી"],
                music:["સંગીત","ગીત","મ્યુઝિક"], theme:["રંગ","થીમ"] },
-      // spoken replies (text-to-speech) so the patient feels heard
-      replies: { start:"ચાલો, રમીએ! તમે કરી શકો છો.", pause:"ઠીક છે, આરામ કરો. હું અહીં જ છું.", slow:"બરાબર, ધીમે ધીમે રમીએ.",
-                 fast:"વાહ! ઝડપ વધારું છું.", volup:"અવાજ વધાર્યો.", voldown:"અવાજ ઓછો કર્યો.", music:"નવું સંગીત ચાલુ કર્યું.",
+      replies: { start:"ચાલો, રમીએ! તમે કરી શકો છો.", pause:"ઠીક છે, થોડો વિરામ. હું અહીં જ છું.", slow:"બરાબર, ધીમે ધીમે રમીએ.",
+                 fast:"વાહ! ઝડપ વધારું છું.", volup:"અવાજ વધાર્યો.", voldown:"અવાજ ઓછો કર્યો.", music:"તમારી પસંદનું નવું સંગીત.",
                  bhajan:"જય શ્રીનાથજી! ભજન ચાલુ કરું છું.", theme:"નવો રંગ, નવી ઉર્જા!", none:"ફરી બોલશો? હું સાંભળું છું.",
                  stage:"હવે આપણે જઈએ છીએ" }
     },
     en: {
       start: "▶ New game", resume: "⏯ Continue from level {n}", next: "Next ▶", level: "Level",
-      howto: "{p} You are the head of the family.<br>Slide your finger to catch<br>🪔 ❤️ 🌸 ⭐. Avoid ☁️ clouds.<br>🎤 Say: start, pause, slow, volume up, change music, change theme",
-      welcome: "Welcome back! 🙏", miss: "No worry, try again 🙂", heard: "🎤 Heard: ",
-      listening: "🎤 Speak...", update: "⬆ New", stats: "Today {m} min • played {s} times",
+      howto: "{p} You are the head of the family.<br>Slide your finger to catch items.<br>Avoid the bad one.<br>🎤 Say: start, pause, slow, volume up, change music, bhajan, change theme",
+      welcome: "Welcome back! 🙏", miss: "Oops! Let's go again 😄", heard: "🎤 Heard: ",
+      listening: "🎤 Speak, I am listening...", update: "⬆ New", stats: "Today {m} min • played {s} times",
       breath: ["🌬️ Breathe in deeply...", "😌 Hold...", "🍃 Breathe out slowly..."],
       family: [
-        ["👴👵","Father & Mother","Son, you are our lion. Stay brave, God is with you. 🙏"],
+        ["👴👵","Father & Mother","Son, you are our lion. We are proud of you! 🙏"],
         ["👨‍✈️✈️","Son abroad","Papa, I am far away but always with you in my heart! ❤️"],
-        ["👦","Grandson","Grandpa, you are my hero! Get well soon to play with me. 🏏"],
-        ["👨‍👩‍👧‍👦","Cousins","The whole family prays for you. You are not alone! 🌸"],
-        ["🌅","New morning","Every sunrise brings new hope. You are winning! ⭐"]
+        ["👦","Grandson","Grandpa, you are my hero! Cricket this evening? 🏏"],
+        ["👨‍👩‍👧‍👦","Cousins","Family gatherings are incomplete without you! 🌸"],
+        ["🌅","New morning","Every sunrise brings new joy. ⭐"]
       ],
-      quotes: ["Courage is medicine 💪","Well done! 👏","Family is your strength ❤️","Every day is a victory 🌟",
-               "Keep smiling, keep healing 😊","You are a warrior ⚔️","After darkness comes light 🌄","One breath, one step, one win 👣"],
+      quotes: ["What a catch! 👏","Family is your strength ❤️","Jai Shreenathji 🙏","You are a champion 🏆","Today is your day 🌟",
+               "Your smile lights the home 🪔","The world is in your hands 🌍","You speak, we listen 👂"],
       voice: { start:["start","play"], stop:["stop"], pause:["pause","wait"], slow:["slow"], fast:["fast"],
-               volup:["volume up","louder"], voldown:["volume down","quieter"], bhajan:["bhajan","shreenath","shrinath","god","aarti"],
+               volup:["volume up","louder"], voldown:["volume down","quieter"], bhajan:["bhajan","shreenath","shrinath","god","aarti","dayro"],
                music:["music","song"], theme:["theme","colour","color"] },
-      replies: { start:"Let's play! You can do it.", pause:"Okay, take rest. I am right here.", slow:"Sure, let's go slowly.",
-                 fast:"Wow! Going faster.", volup:"Volume up.", voldown:"Volume down.", music:"New music on.",
+      replies: { start:"Let's play! You can do it.", pause:"Okay, a short break. I am right here.", slow:"Sure, let's go slowly.",
+                 fast:"Wow! Going faster.", volup:"Volume up.", voldown:"Volume down.", music:"New music for you.",
                  bhajan:"Jai Shreenathji! Playing bhajan.", theme:"New colour, new energy!", none:"Say again? I am listening.",
                  stage:"Now we go to" }
     }
