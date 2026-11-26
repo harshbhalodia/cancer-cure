@@ -117,9 +117,9 @@ if(S.lv>1){if(S.last&&Date.now()-S.last>2592e5)S.lv=Math.max(1,S.lv-1);$('bRes')
 const today=new Date().toISOString().slice(0,10),td=S.sessions.filter(s=>s.d.startsWith(today));
 $('stats').textContent=L.stats.replace('{m}',td.reduce((a,s)=>a+s.min,0).toFixed(0)).replace('{s}',S.sessions.length);
 if(!S.cid){S.cid=Date.now()+'.'+(Math.random()*1e9|0);save();S.isNew=1}
-// GA4 via gtag.js (Measurement ID only). file:// has no cookies, so we pass our own install id.
+// GA4 via gtag.js (Measurement ID only); app is served from https://ashadeep.app inside the WebView
 if(C.ga4.measurementId){window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments)};gtag('js',new Date());
- gtag('config',C.ga4.measurementId,{client_storage:'none',client_id:S.cid,page_location:'https://ashadeep.app/game',page_title:'AshaDeep'});
+ gtag('config',C.ga4.measurementId,{client_id:S.cid,page_title:'AshaDeep',app_version:A?A.versionName():'web'});
  const sc=document.createElement('script');sc.async=1;sc.src='https://www.googletagmanager.com/gtag/js?id='+C.ga4.measurementId;document.head.appendChild(sc)}
 if(S.isNew){delete S.isNew;save();ev('first_open_app')}ev('app_open',{sessions:S.sessions.length,level:S.lv});
 checkUpdate();

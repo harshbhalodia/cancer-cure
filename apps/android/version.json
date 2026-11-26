@@ -1,6 +1,6 @@
 {
-  "versionCode": 5,
-  "versionName": "1.4",
+  "versionCode": 6,
+  "versionName": "1.5",
   "apkUrl": "https://github.com/harshbhalodia/cancer-cure/raw/main/apps/android/AshaDeep.apk",
-  "notes": "All-devotional music: Shreenathji Zankhi tunes with dholak & manjira, dayro, Google Analytics"
+  "notes": "Fix Google Analytics (serve app over https origin)"
 }

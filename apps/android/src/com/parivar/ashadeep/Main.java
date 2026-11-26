@@ -29,7 +29,16 @@ public class Main extends Activity {
     w.getSettings().setDomStorageEnabled(true);
     w.getSettings().setMediaPlaybackRequiresUserGesture(false);
     w.addJavascriptInterface(new Bridge(), "Android");
-    w.loadUrl("file:///android_asset/index.html");
+    // Serve assets from a virtual https origin so Google Analytics (which ignores file://) works
+    w.setWebViewClient(new android.webkit.WebViewClient() {
+      @Override public android.webkit.WebResourceResponse shouldInterceptRequest(WebView v, android.webkit.WebResourceRequest r) {
+        Uri u = r.getUrl();
+        if (!"ashadeep.app".equals(u.getHost())) return null;
+        String p = u.getPath().substring(1), m = p.endsWith(".js") ? "text/javascript" : p.endsWith(".mp3") ? "audio/mpeg" : "text/html";
+        try { return new android.webkit.WebResourceResponse(m, "utf-8", getAssets().open(p)); } catch (Exception e) { return null; }
+      }
+    });
+    w.loadUrl("https://ashadeep.app/index.html");
     setContentView(w);
   }
 
