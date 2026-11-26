@@ -11,3 +11,6 @@ __pycache__/
 node_modules/
 dist/
 ref/
+
+apps/android/build/
+apps/android/key.jks

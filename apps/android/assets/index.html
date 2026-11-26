@@ -1,0 +1,90 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+body{height:100vh;overflow:hidden;font-family:sans-serif;color:#fff;text-align:center;transition:background 1s}
+#hud{position:fixed;top:0;width:100%;padding:10px;font-size:22px;display:flex;justify-content:space-between;align-items:center;background:#0004;z-index:4}
+#hud span{padding:0 6px}#up{display:none;background:#4caf50;border-radius:20px;font-size:18px;padding:4px 12px}
+#c{position:fixed;inset:0}
+.scr{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000a;z-index:3;padding:24px;gap:16px}
+.big{font-size:70px}.t{font-size:28px;line-height:1.5}.s{font-size:19px;opacity:.9;line-height:1.5}
+button{font-size:24px;padding:14px 34px;border:0;border-radius:40px;background:#ffb300;color:#222;font-weight:bold}
+#msg{position:fixed;top:64px;width:100%;font-size:24px;z-index:4;text-shadow:0 2px 4px #000;transition:opacity .5s;padding:0 10px}
+#mic{position:fixed;right:16px;bottom:120px;font-size:34px;width:64px;height:64px;border-radius:50%;background:#fff3;z-index:5;line-height:64px}
+#brand{position:fixed;bottom:4px;width:100%;font-size:13px;opacity:.7;z-index:4}
+</style></head><body>
+<div id="hud"><span>🪔 <b id="sc">0</b></span><span id="lv"></span><span id="up" onclick="doUpdate()"></span><span id="mu" onclick="toggleMusic()">🎵</span></div>
+<div id="msg"></div><canvas id="c"></canvas><div id="mic" onclick="listen()">🎤</div><div id="brand"></div>
+<div class="scr" id="start"><div class="big">🪔</div><div class="t" id="title"></div><div class="s" id="howto"></div>
+ <button id="bRes" onclick="go(true)"></button><button id="bNew" onclick="go(false)"></button><div class="s" id="stats"></div></div>
+<div class="scr" id="mid" style="display:none"><div class="big" id="mf"></div><div class="t" id="mt"></div><div class="s" id="br"></div>
+ <button id="bNext" onclick="next()"></button></div>
+<script src="config.js"></script>
+<script>
+const C=CFG,L=C.text[C.lang]||C.text.gu,A=window.Android,$=i=>document.getElementById(i),c=$('c'),x=c.getContext('2d');
+const S=JSON.parse(localStorage.ad||'{}');S.lv=S.lv||1;S.spd=S.spd||1;S.theme=S.theme||0;S.mus=S.mus||0;S.vol=S.vol||.18;S.qi=S.qi||0;S.sessions=S.sessions||[];
+const save=()=>localStorage.ad=JSON.stringify(S);
+let W,H,px,items=[],score=0,lv=1,caught=0,miss=0,run=false,paused=false,t=0,ac,mg,musicOn=true,t0=0,voiceN=0;
+function rs(){W=c.width=innerWidth;H=c.height=innerHeight;px=px||W/2}rs();onresize=rs;
+c.addEventListener('touchmove',e=>{px=e.touches[0].clientX;e.preventDefault()},{passive:false});
+c.addEventListener('touchstart',e=>px=e.touches[0].clientX);c.onmousemove=e=>px=e.clientX;
+function say(s){$('msg').textContent=s;$('msg').style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>$('msg').style.opacity=0,2500)}
+function theme(){document.body.style.background=C.themes[S.theme%C.themes.length]}
+// Rotating inspiration: shuffled deck, persisted so statements keep changing across days
+function quote(){if(!S.deck||S.qi>=S.deck.length){S.deck=L.quotes.map((_,i)=>i).sort(()=>Math.random()-.5);S.qi=0}return L.quotes[S.deck[S.qi++]]||L.quotes[0]}
+// ---- Music: original synthesized healing pad + bells ----
+function music(){if(ac)return;ac=new(window.AudioContext||window.webkitAudioContext)();mg=ac.createGain();mg.gain.value=S.vol;mg.connect(ac.destination);let i=0;
+ (function pad(){const ch=C.music[S.mus%C.music.length].chords,n=ac.currentTime;ch[i++%ch.length].forEach(f=>[f,f*2.003].forEach(fr=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=fr;g.gain.setValueAtTime(0,n);g.gain.linearRampToValueAtTime(.12,n+2);g.gain.linearRampToValueAtTime(0,n+8);o.connect(g);g.connect(mg);o.start(n);o.stop(n+8.2)}));
+  [0,2,4].forEach(d=>{if(Math.random()<.6)bell(ch[(i+1)%ch.length][Math.random()*3|0]*2,n+d+Math.random(),.05)});setTimeout(pad,6000)})()}
+function bell(f,at,v){if(!ac||!musicOn)return;at=at||ac.currentTime;const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;g.gain.setValueAtTime(v||.15,at);g.gain.exponentialRampToValueAtTime(.001,at+2);o.connect(g);g.connect(mg);o.start(at);o.stop(at+2)}
+function toggleMusic(){musicOn=!musicOn;$('mu').textContent=musicOn?'🎵':'🔇';if(ac)musicOn?ac.resume():ac.suspend()}
+function vol(d){S.vol=Math.min(.6,Math.max(.03,S.vol+d));if(mg)mg.gain.value=S.vol;say((d>0?'🔊 ':'🔉 ')+Math.round(S.vol*100/.6)+'%');save()}
+// ---- Game ----
+function pauseAll(){if(ac)ac.suspend();if(run){paused=true;run=false}endSession()}
+function resume(){if(!paused)return;paused=false;run=true;if(musicOn&&ac)ac.resume();t0=t0||Date.now();loop()}
+function go(res){music();$('start').style.display='none';lv=res?S.lv:1;if(!res){S.spd=1}score=res?S.score||0:0;
+ $('sc').textContent=score;$('lv').textContent=L.level+' '+lv;caught=miss=0;items=[];run=true;t0=Date.now();if(res)say(L.welcome);loop()}
+function next(){$('mid').style.display='none';caught=miss=0;items=[];run=true;if(musicOn)ac.resume();loop()}
+function spawn(){const bad=Math.random()<.12+lv*.015;items.push({x:30+Math.random()*(W-60),y:-40,v:(2+lv*.4+Math.random()*1.5)*S.spd*H/700,e:bad?C.bad:C.good[Math.random()*C.good.length|0],bad})}
+function loop(){if(!run)return;t++;x.clearRect(0,0,W,H);
+ if(t%Math.max(18,Math.round((45-lv*3)/S.spd))==0)spawn();
+ x.font='44px sans-serif';x.textAlign='center';const py=H-90;
+ for(let i=items.length-1;i>=0;i--){const o=items[i];o.y+=o.v;x.fillText(o.e,o.x,o.y);
+  if(o.y>py-40&&o.y<py+20&&Math.abs(o.x-px)<55){items.splice(i,1);
+   if(o.bad){miss++;score=Math.max(0,score-2);say(L.miss);navigator.vibrate&&navigator.vibrate(80)}
+   else{score++;caught++;bell([432,486,540,648][Math.random()*4|0]);if(caught%6==0)say(quote())}
+   $('sc').textContent=score;if(caught>=12+lv*2)return levelUp()}
+  else if(o.y>H+40){if(!o.bad)miss+=.3;items.splice(i,1)}}
+ x.font='64px sans-serif';x.fillText(C.player,px,py+20);requestAnimationFrame(loop)}
+function levelUp(){run=false;
+ // Adaptive: struggling -> slow down; doing great -> slightly faster (bounded)
+ S.spd=Math.min(1.4,Math.max(.6,S.spd+(miss>5?-.1:miss<1.5?.05:0)));
+ const f=L.family[(lv-1)%L.family.length];lv++;S.lv=lv;S.score=score;S.last=Date.now();save();
+ $('lv').textContent=L.level+' '+lv;$('mf').textContent=f[0];$('mt').innerHTML='<b>'+f[1]+'</b><br>'+f[2];bell(648);bell(864,ac.currentTime+.3);
+ const b=$('br');let k=0;clearInterval(b.i);b.textContent=L.breath[0];b.i=setInterval(()=>b.textContent=L.breath[++k%3],2500);$('mid').style.display='flex'}
+// ---- Analytics (local; optionally sent to hospital) ----
+function endSession(){if(!t0)return;const r={d:new Date().toISOString(),min:+((Date.now()-t0)/6e4).toFixed(1),lv,score,voice:voiceN,hospital:C.brand.hospital};t0=0;voiceN=0;
+ if(r.min<.1)return;S.sessions.push(r);S.sessions=S.sessions.slice(-200);save();
+ if(C.analyticsUrl)fetch(C.analyticsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r)}).catch(()=>{})}
+// ---- Voice ----
+function listen(){if(!A)return say('🎤 ✖');say(L.listening);A.listen(C.lang=='en'?'en-IN':'gu-IN')}
+function onVoice(txt){voiceN++;txt=(txt||'').toLowerCase();const V=L.voice,E=C.text.en.voice,has=k=>(V[k]||[]).concat(E[k]).some(w=>txt.includes(w));
+ say(L.heard+txt);
+ if(has('volup'))vol(.08);else if(has('voldown'))vol(-.08);
+ else if(has('music')){S.mus++;save();say('🎵 '+C.music[S.mus%C.music.length].name)}
+ else if(has('theme')){S.theme++;theme();save()}
+ else if(has('slow')){S.spd=Math.max(.5,S.spd-.15);save();say('🐢')}
+ else if(has('fast')){S.spd=Math.min(1.5,S.spd+.1);save();say('🐇')}
+ else if(has('pause')||has('stop'))pauseAll();
+ else if(has('start')){if(paused)resume();else if($('start').style.display!='none')go(true);else if($('mid').style.display!='none')next()}}
+// ---- Update check (GitHub main) ----
+let upd;function checkUpdate(){if(!A||!C.updateUrl)return;fetch(C.updateUrl+'?t='+Date.now()).then(r=>r.json()).then(v=>{if(v.versionCode>A.versionCode()){upd=v;$('up').textContent=L.update+' v'+v.versionName;$('up').style.display='inline'}}).catch(()=>{})}
+function doUpdate(){if(upd)A.openUrl(upd.apkUrl)}
+// ---- Init ----
+theme();document.title=C.brand.app;$('title').innerHTML='<b>'+C.brand.app+'</b><br>'+C.brand.tagline;$('howto').innerHTML=L.howto.replace('{p}',C.player);
+$('brand').textContent=C.brand.hospital+(A?' • v'+A.versionName():'');$('bNew').textContent=L.start;$('bNext').textContent=L.next;$('lv').textContent=L.level+' 1';
+// Smart resume: after a long break (3+ days) restart one level lower to ease back in
+if(S.lv>1){if(S.last&&Date.now()-S.last>2592e5)S.lv=Math.max(1,S.lv-1);$('bRes').textContent=L.resume.replace('{n}',S.lv)}else $('bRes').style.display='none';
+const today=new Date().toISOString().slice(0,10),td=S.sessions.filter(s=>s.d.startsWith(today));
+$('stats').textContent=L.stats.replace('{m}',td.reduce((a,s)=>a+s.min,0).toFixed(0)).replace('{s}',S.sessions.length);
+checkUpdate();
+</script></body></html>
