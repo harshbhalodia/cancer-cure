@@ -18,9 +18,11 @@ import java.util.ArrayList;
 public class Main extends Activity {
   WebView w;
   SpeechRecognizer sr;
+  android.speech.tts.TextToSpeech tts;
 
   @Override protected void onCreate(Bundle b) {
     super.onCreate(b);
+    tts = new android.speech.tts.TextToSpeech(this, s -> {});
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     w = new WebView(this);
     w.getSettings().setJavaScriptEnabled(true);
@@ -32,7 +34,7 @@ public class Main extends Activity {
   }
 
   @Override protected void onPause() { super.onPause(); w.evaluateJavascript("pauseAll()", null); }
-  @Override protected void onDestroy() { if (sr != null) sr.destroy(); super.onDestroy(); }
+  @Override protected void onDestroy() { if (sr != null) sr.destroy(); tts.shutdown(); super.onDestroy(); }
 
   void js(String fn, String arg) {
     final String s = fn + "(" + org.json.JSONObject.quote(arg) + ")";
@@ -71,6 +73,11 @@ public class Main extends Activity {
     }
     @JavascriptInterface public String versionName() {
       try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return ""; }
+    }
+    @JavascriptInterface public void speak(String t, String lang) {
+      tts.setLanguage(java.util.Locale.forLanguageTag(lang));
+      tts.setSpeechRate(0.9f);
+      tts.speak(t, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "a");
     }
     @JavascriptInterface public void openUrl(String u) { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u))); }
   }

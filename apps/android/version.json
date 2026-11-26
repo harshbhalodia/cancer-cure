@@ -1,6 +1,6 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
+  "versionCode": 3,
+  "versionName": "1.2",
   "apkUrl": "https://github.com/harshbhalodia/cancer-cure/raw/main/apps/android/AshaDeep.apk",
-  "notes": "Resume/new game, rotating messages, voice commands, update button, hospital branding, analytics"
+  "notes": "Shreenathji-style bhajan music, spoken voice replies, 6 changing stage worlds"
 }

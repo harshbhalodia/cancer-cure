@@ -12,16 +12,29 @@ window.CFG = {
     "linear-gradient(#41295a,#2F0743,#f8b500)",
     "linear-gradient(#ff7e5f,#feb47b)"
   ],
-  // music presets: chord progressions (Hz). Soft pad + bells, original synthesized audio
+  // music presets (original synthesized audio). chords = soft pad; raga = devotional mode:
+  // tanpura drone on Sa (Hz) + bansuri-like melody over scale ratios + manjira
   music: [
     { name: "શાંતિ", chords: [[216,272,324],[192,242,288],[162,204,243],[182,229,272]] },
     { name: "પ્રભાત", chords: [[264,330,396],[297,371,445],[220,277,330],[247,311,370]] },
-    { name: "ધ્યાન", chords: [[144,216,288],[128,192,256],[162,243,324],[144,216,288]] }
+    { name: "ધ્યાન", chords: [[144,216,288],[128,192,256],[162,243,324],[144,216,288]] },
+    { name: "શ્રીનાથજી ભજન (ભૂપાલી)", raga: { sa: 261.6, scale: [1,9/8,5/4,3/2,5/3,2,9/4], manjira: true } },
+    { name: "હવેલી કીર્તન (યમન)", raga: { sa: 293.7, scale: [1,9/8,5/4,45/32,3/2,5/3,15/8,2], manjira: true } },
+    { name: "સાંજ આરતી (દુર્ગા)", raga: { sa: 220, scale: [1,9/8,4/3,3/2,5/3,2], manjira: true, bell: true } }
+  ],
+  // Each level moves to the next world: background, items, enemy and music change to avoid boredom
+  stages: [
+    { name: "🏡 ઘરનું આંગણું", bg: "linear-gradient(#1a2a6c,#b21f1f55,#fdbb2d)", good: ["🪔","❤️","🌸","⭐"], bad: "☁️", music: 0 },
+    { name: "🦚 શ્રીનાથજી હવેલી", bg: "linear-gradient(#4a0072,#c2185b,#ffb300)", good: ["🦚","🪈","🧈","🌺","🪔"], bad: "🌧️", music: 3 },
+    { name: "🌳 બગીચો", bg: "linear-gradient(#134e5e,#71b280)", good: ["🌼","🦋","🍎","🌻"], bad: "🐝", music: 1 },
+    { name: "🛕 સાંજ આરતી", bg: "linear-gradient(#ff512f,#dd2476,#2b1055)", good: ["🔔","🪔","🥥","🌺","🙏"], bad: "💨", music: 5 },
+    { name: "🌙 તારાઓનું આકાશ", bg: "linear-gradient(#000428,#004e92)", good: ["⭐","🌙","✨","🌟"], bad: "☄️", music: 2 },
+    { name: "🌊 ગોમતી ઘાટ", bg: "linear-gradient(#2193b0,#6dd5ed)", good: ["🐚","🪷","🐟","🪔"], bad: "🌪️", music: 4 }
   ],
   text: {
     gu: {
       start: "▶ નવેસરથી રમો", resume: "⏯ સ્તર {n} થી આગળ રમો", next: "આગળ ▶", level: "સ્તર",
-      howto: "{p} તમે છો પરિવારના મોભી.<br>આંગળીથી ખસેડો અને<br>🪔 ❤️ 🌸 ⭐ પકડો.<br>☁️ કાળા વાદળથી બચો.<br>🎤 બોલો: શરૂ, થોભો, ધીમે, અવાજ વધારો, સંગીત બદલો, રંગ બદલો",
+      howto: "{p} તમે છો પરિવારના મોભી.<br>આંગળીથી ખસેડો અને<br>🪔 ❤️ 🌸 ⭐ પકડો.<br>☁️ કાળા વાદળથી બચો.<br>🎤 બોલો: શરૂ, થોભો, ધીમે, અવાજ વધારો, સંગીત બદલો, ભજન, રંગ બદલો",
       welcome: "ફરી સ્વાગત છે! 🙏", miss: "ચિંતા નહીં, ફરી પ્રયત્ન કરો 🙂", heard: "🎤 સાંભળ્યું: ",
       listening: "🎤 બોલો...", update: "⬆ નવું", stats: "આજે {m} મિનિટ • કુલ {s} વખત રમ્યા",
       breath: ["🌬️ ઊંડો શ્વાસ લો...", "😌 રોકો...", "🍃 ધીમેથી છોડો..."],
@@ -47,7 +60,13 @@ window.CFG = {
       ],
       // voice keywords (any match). Lowercase English always also accepted.
       voice: { start:["શરૂ","ચાલુ"], stop:["બંધ"], pause:["થોભ","રોક","ઉભા"], slow:["ધીમ"], fast:["ઝડપ","જલ્દી"],
-               volup:["અવાજ વધાર","મોટ","વધાર"], voldown:["અવાજ ઘટાડ","ધીર","ઓછ"], music:["સંગીત","ગીત","મ્યુઝિક"], theme:["રંગ","થીમ"] }
+               volup:["અવાજ વધાર","મોટ","વધાર"], voldown:["અવાજ ઘટાડ","ધીર","ઓછ"], bhajan:["ભજન","શ્રીનાથ","ભગવાન","કીર્તન","આરતી"],
+               music:["સંગીત","ગીત","મ્યુઝિક"], theme:["રંગ","થીમ"] },
+      // spoken replies (text-to-speech) so the patient feels heard
+      replies: { start:"ચાલો, રમીએ! તમે કરી શકો છો.", pause:"ઠીક છે, આરામ કરો. હું અહીં જ છું.", slow:"બરાબર, ધીમે ધીમે રમીએ.",
+                 fast:"વાહ! ઝડપ વધારું છું.", volup:"અવાજ વધાર્યો.", voldown:"અવાજ ઓછો કર્યો.", music:"નવું સંગીત ચાલુ કર્યું.",
+                 bhajan:"જય શ્રીનાથજી! ભજન ચાલુ કરું છું.", theme:"નવો રંગ, નવી ઉર્જા!", none:"ફરી બોલશો? હું સાંભળું છું.",
+                 stage:"હવે આપણે જઈએ છીએ" }
     },
     en: {
       start: "▶ New game", resume: "⏯ Continue from level {n}", next: "Next ▶", level: "Level",
@@ -65,7 +84,12 @@ window.CFG = {
       quotes: ["Courage is medicine 💪","Well done! 👏","Family is your strength ❤️","Every day is a victory 🌟",
                "Keep smiling, keep healing 😊","You are a warrior ⚔️","After darkness comes light 🌄","One breath, one step, one win 👣"],
       voice: { start:["start","play"], stop:["stop"], pause:["pause","wait"], slow:["slow"], fast:["fast"],
-               volup:["volume up","louder"], voldown:["volume down","quieter"], music:["music","song"], theme:["theme","colour","color"] }
+               volup:["volume up","louder"], voldown:["volume down","quieter"], bhajan:["bhajan","shreenath","shrinath","god","aarti"],
+               music:["music","song"], theme:["theme","colour","color"] },
+      replies: { start:"Let's play! You can do it.", pause:"Okay, take rest. I am right here.", slow:"Sure, let's go slowly.",
+                 fast:"Wow! Going faster.", volup:"Volume up.", voldown:"Volume down.", music:"New music on.",
+                 bhajan:"Jai Shreenathji! Playing bhajan.", theme:"New colour, new energy!", none:"Say again? I am listening.",
+                 stage:"Now we go to" }
     }
   }
 };

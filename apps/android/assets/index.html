@@ -33,8 +33,26 @@ function theme(){document.body.style.background=C.themes[S.theme%C.themes.length
 function quote(){if(!S.deck||S.qi>=S.deck.length){S.deck=L.quotes.map((_,i)=>i).sort(()=>Math.random()-.5);S.qi=0}return L.quotes[S.deck[S.qi++]]||L.quotes[0]}
 // ---- Music: original synthesized healing pad + bells ----
 function music(){if(ac)return;ac=new(window.AudioContext||window.webkitAudioContext)();mg=ac.createGain();mg.gain.value=S.vol;mg.connect(ac.destination);let i=0;
- (function pad(){const ch=C.music[S.mus%C.music.length].chords,n=ac.currentTime;ch[i++%ch.length].forEach(f=>[f,f*2.003].forEach(fr=>{const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=fr;g.gain.setValueAtTime(0,n);g.gain.linearRampToValueAtTime(.12,n+2);g.gain.linearRampToValueAtTime(0,n+8);o.connect(g);g.connect(mg);o.start(n);o.stop(n+8.2)}));
-  [0,2,4].forEach(d=>{if(Math.random()<.6)bell(ch[(i+1)%ch.length][Math.random()*3|0]*2,n+d+Math.random(),.05)});setTimeout(pad,6000)})()}
+ (function pad(){const P=C.music[S.mus%C.music.length],n=ac.currentTime;
+  if(P.raga){const R=P.raga,sa=R.sa;
+   // tanpura drone: Pa(low) Sa Sa Sa(low)
+   [sa*.75,sa,sa,sa/2].forEach((f,k)=>tone(f,n+k*1.5,3.5,.05,'sawtooth',900));
+   // bansuri-like melody: gentle random walk on the raga scale
+   let p=R.p||0;for(let k=0;k<4;k++){p=Math.max(0,Math.min(R.scale.length-1,p+[-1,0,1,1,-1,2,-2][Math.random()*7|0]));tone(sa*R.scale[p],n+k*1.5,1.6,.09,'triangle',0,1)}R.p=p;
+   if(R.manjira)for(let k=0;k<6;k+=2)tone(2600,n+k,.4,.025,'square',0);
+   if(R.bell&&i%2==0)bell(sa*4,n+.1,.06);
+  }else{const ch=P.chords;ch[i%ch.length].forEach(f=>[f,f*2.003].forEach(fr=>tone(fr,n,8,.12,'sine',0)));
+   [0,2,4].forEach(d=>{if(Math.random()<.6)bell(ch[(i+1)%ch.length][Math.random()*3|0]*2,n+d+Math.random(),.05)})}
+  i++;setTimeout(pad,6000)})()}
+function tone(f,at,dur,v,type,lp,vib){const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;let out=o;
+ if(lp){const fl=ac.createBiquadFilter();fl.frequency.value=lp;o.connect(fl);out=fl}
+ if(vib){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=5;lg.gain.value=f*.006;l.connect(lg);lg.connect(o.frequency);l.start(at);l.stop(at+dur)}
+ g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(v,at+Math.min(2,dur/4));g.gain.linearRampToValueAtTime(0,at+dur);out.connect(g);g.connect(mg);o.start(at);o.stop(at+dur+.1)}
+// Text-to-speech reply in selected language (emojis removed)
+function speak(s){if(A&&A.speak)A.speak(s.replace(/\p{Extended_Pictographic}|\uFE0F|\u200D/gu,''),C.lang=='en'?'en-IN':'gu-IN')}
+// Stage worlds: each level changes background, items and music
+let ST=C.stages[0];function stage(talk){ST=C.stages[(lv-1)%C.stages.length];document.body.style.background=ST.bg;S.mus=ST.music;save();
+ $('lv').textContent=L.level+' '+lv;say(ST.name);if(talk)speak(L.replies.stage+' '+ST.name)}
 function bell(f,at,v){if(!ac||!musicOn)return;at=at||ac.currentTime;const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;g.gain.setValueAtTime(v||.15,at);g.gain.exponentialRampToValueAtTime(.001,at+2);o.connect(g);g.connect(mg);o.start(at);o.stop(at+2)}
 function toggleMusic(){musicOn=!musicOn;$('mu').textContent=musicOn?'🎵':'🔇';if(ac)musicOn?ac.resume():ac.suspend()}
 function vol(d){S.vol=Math.min(.6,Math.max(.03,S.vol+d));if(mg)mg.gain.value=S.vol;say((d>0?'🔊 ':'🔉 ')+Math.round(S.vol*100/.6)+'%');save()}
@@ -42,9 +60,9 @@ function vol(d){S.vol=Math.min(.6,Math.max(.03,S.vol+d));if(mg)mg.gain.value=S.v
 function pauseAll(){if(ac)ac.suspend();if(run){paused=true;run=false}endSession()}
 function resume(){if(!paused)return;paused=false;run=true;if(musicOn&&ac)ac.resume();t0=t0||Date.now();loop()}
 function go(res){music();$('start').style.display='none';lv=res?S.lv:1;if(!res){S.spd=1}score=res?S.score||0:0;
- $('sc').textContent=score;$('lv').textContent=L.level+' '+lv;caught=miss=0;items=[];run=true;t0=Date.now();if(res)say(L.welcome);loop()}
-function next(){$('mid').style.display='none';caught=miss=0;items=[];run=true;if(musicOn)ac.resume();loop()}
-function spawn(){const bad=Math.random()<.12+lv*.015;items.push({x:30+Math.random()*(W-60),y:-40,v:(2+lv*.4+Math.random()*1.5)*S.spd*H/700,e:bad?C.bad:C.good[Math.random()*C.good.length|0],bad})}
+ $('sc').textContent=score;caught=miss=0;items=[];run=true;t0=Date.now();stage(true);if(res)say(L.welcome);loop()}
+function next(){$('mid').style.display='none';caught=miss=0;items=[];run=true;stage(true);if(musicOn)ac.resume();loop()}
+function spawn(){const bad=Math.random()<.12+lv*.015;items.push({x:30+Math.random()*(W-60),y:-40,v:(2+lv*.4+Math.random()*1.5)*S.spd*H/700,e:bad?ST.bad:ST.good[Math.random()*ST.good.length|0],bad})}
 function loop(){if(!run)return;t++;x.clearRect(0,0,W,H);
  if(t%Math.max(18,Math.round((45-lv*3)/S.spd))==0)spawn();
  x.font='44px sans-serif';x.textAlign='center';const py=H-90;
@@ -59,7 +77,7 @@ function levelUp(){run=false;
  // Adaptive: struggling -> slow down; doing great -> slightly faster (bounded)
  S.spd=Math.min(1.4,Math.max(.6,S.spd+(miss>5?-.1:miss<1.5?.05:0)));
  const f=L.family[(lv-1)%L.family.length];lv++;S.lv=lv;S.score=score;S.last=Date.now();save();
- $('lv').textContent=L.level+' '+lv;$('mf').textContent=f[0];$('mt').innerHTML='<b>'+f[1]+'</b><br>'+f[2];bell(648);bell(864,ac.currentTime+.3);
+ $('lv').textContent=L.level+' '+lv;$('mf').textContent=f[0];$('mt').innerHTML='<b>'+f[1]+'</b><br>'+f[2];speak(f[1]+'. '+f[2]);bell(648);bell(864,ac.currentTime+.3);
  const b=$('br');let k=0;clearInterval(b.i);b.textContent=L.breath[0];b.i=setInterval(()=>b.textContent=L.breath[++k%3],2500);$('mid').style.display='flex'}
 // ---- Analytics (local; optionally sent to hospital) ----
 function endSession(){if(!t0)return;const r={d:new Date().toISOString(),min:+((Date.now()-t0)/6e4).toFixed(1),lv,score,voice:voiceN,hospital:C.brand.hospital};t0=0;voiceN=0;
@@ -68,7 +86,8 @@ function endSession(){if(!t0)return;const r={d:new Date().toISOString(),min:+((D
 // ---- Voice ----
 function listen(){if(!A)return say('🎤 ✖');say(L.listening);A.listen(C.lang=='en'?'en-IN':'gu-IN')}
 function onVoice(txt){voiceN++;txt=(txt||'').toLowerCase();const V=L.voice,E=C.text.en.voice,has=k=>(V[k]||[]).concat(E[k]).some(w=>txt.includes(w));
- say(L.heard+txt);
+ say(L.heard+txt);const R=L.replies,k=['volup','voldown','bhajan','music','theme','slow','fast','pause','stop','start'].find(has);speak(R[k=='stop'?'pause':k]||R.none);
+ if(k=='bhajan'){S.mus=[3,4,5][Math.random()*3|0];save();say('🦚 '+C.music[S.mus].name)}else
  if(has('volup'))vol(.08);else if(has('voldown'))vol(-.08);
  else if(has('music')){S.mus++;save();say('🎵 '+C.music[S.mus%C.music.length].name)}
  else if(has('theme')){S.theme++;theme();save()}
