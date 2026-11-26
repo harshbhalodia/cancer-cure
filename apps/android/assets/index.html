@@ -38,9 +38,11 @@ function music(){if(ac)return;ac=new(window.AudioContext||window.webkitAudioCont
   if(P.raga){const R=P.raga,sa=R.sa;
    // tanpura drone: Pa(low) Sa Sa Sa(low)
    [sa*.75,sa,sa,sa/2].forEach((f,k)=>tone(f,n+k*1.5,3.5,.05,'sawtooth',900));
-   // bansuri-like melody: gentle random walk on the raga scale
-   let p=R.p||0;for(let k=0;k<4;k++){p=Math.max(0,Math.min(R.scale.length-1,p+[-1,0,1,1,-1,2,-2][Math.random()*7|0]));tone(sa*R.scale[p],n+k*1.5,1.6,.09,'triangle',0,1)}R.p=p;
-   if(R.manjira)for(let k=0;k<6;k+=2)tone(2600,n+k,.4,.025,'square',0);
+   // bansuri melody: follows the bhajan tune if given, else gentle random walk; 8 notes per 6s cycle
+   let p=R.p||0;for(let k=0;k<8;k++){if(R.tune){p=R.tune[(R.ti=(R.ti||0)+1)%R.tune.length]}else p=Math.max(0,Math.min(R.scale.length-1,p+[-1,0,1,1,-1,2,-2][Math.random()*7|0]));
+    tone(sa*R.scale[p],n+k*.75,.9,.09,'triangle',0,1);
+    // dholak (dha/dhin) on every beat, manjira on off-beats
+    tone(k%4==0?140:k%2?210:170,n+k*.75,.25,k%4==0?.3:.18,'sine',0);if(R.manjira&&k%2)tone(2600,n+k*.75,.25,.02,'square',0)}R.p=p;
    if(R.bell&&i%2==0)bell(sa*4,n+.1,.06);
   }else{const ch=P.chords;ch[i%ch.length].forEach(f=>[f,f*2.003].forEach(fr=>tone(fr,n,8,.12,'sine',0)));
    [0,2,4].forEach(d=>{if(Math.random()<.6)bell(ch[(i+1)%ch.length][Math.random()*3|0]*2,n+d+Math.random(),.05)})}
@@ -85,7 +87,7 @@ function endSession(){if(!t0)return;const r={d:new Date().toISOString(),min:+((D
  if(r.min<.1)return;S.sessions.push(r);S.sessions=S.sessions.slice(-200);save();ev('session_end',{minutes:r.min,level:lv,score,voice:r.voice})}
 // Analytics: anonymous install id; GA4 Measurement Protocol and/or hospital endpoint
 function ev(name,p){p=Object.assign({app_version:A?A.versionName():'web',hospital:C.brand.hospital||'none',lang:C.lang,engagement_time_msec:1},p||{});
- const g=C.ga4;if(g.measurementId&&g.apiSecret)fetch('https://www.google-analytics.com/mp/collect?measurement_id='+g.measurementId+'&api_secret='+g.apiSecret,{method:'POST',body:JSON.stringify({client_id:S.cid,events:[{name,params:p}]})}).catch(()=>{});
+ const g=C.ga4;if(window.gtag)gtag('event',name,p);if(g.measurementId&&g.apiSecret)fetch('https://www.google-analytics.com/mp/collect?measurement_id='+g.measurementId+'&api_secret='+g.apiSecret,{method:'POST',body:JSON.stringify({client_id:S.cid,events:[{name,params:p}]})}).catch(()=>{});
  if(C.analyticsUrl)fetch(C.analyticsUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({install:S.cid,event:name,t:new Date().toISOString(),...p})}).catch(()=>{})}
 function mood(m){ev('mood',{mood:m});$('moodq').innerHTML={1:'😊 ખૂબ સરસ!',2:'🙂 ચાલો મજા કરીએ!',3:'🤗 અમે તમારી સાથે છીએ!'}[m]}
 // Real bhajan/dayro playlist (optional, from config)
@@ -114,6 +116,11 @@ $('brand').textContent=(C.brand.hospital||C.brand.footer)+(A?' • v'+A.versionN
 if(S.lv>1){if(S.last&&Date.now()-S.last>2592e5)S.lv=Math.max(1,S.lv-1);$('bRes').textContent=L.resume.replace('{n}',S.lv)}else $('bRes').style.display='none';
 const today=new Date().toISOString().slice(0,10),td=S.sessions.filter(s=>s.d.startsWith(today));
 $('stats').textContent=L.stats.replace('{m}',td.reduce((a,s)=>a+s.min,0).toFixed(0)).replace('{s}',S.sessions.length);
-if(!S.cid){S.cid=Date.now()+'.'+(Math.random()*1e9|0);save();ev('first_open')}ev('app_open',{sessions:S.sessions.length,level:S.lv});
+if(!S.cid){S.cid=Date.now()+'.'+(Math.random()*1e9|0);save();S.isNew=1}
+// GA4 via gtag.js (Measurement ID only). file:// has no cookies, so we pass our own install id.
+if(C.ga4.measurementId){window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments)};gtag('js',new Date());
+ gtag('config',C.ga4.measurementId,{client_storage:'none',client_id:S.cid,page_location:'https://ashadeep.app/game',page_title:'AshaDeep'});
+ const sc=document.createElement('script');sc.async=1;sc.src='https://www.googletagmanager.com/gtag/js?id='+C.ga4.measurementId;document.head.appendChild(sc)}
+if(S.isNew){delete S.isNew;save();ev('first_open_app')}ev('app_open',{sessions:S.sessions.length,level:S.lv});
 checkUpdate();
 </script></body></html>

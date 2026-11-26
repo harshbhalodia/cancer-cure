@@ -4,7 +4,7 @@ window.CFG = {
   lang: "gu",                 // "gu" or "en"; also used for voice: gu-IN / en-IN
   updateUrl: "https://raw.githubusercontent.com/harshbhalodia/cancer-cure/main/apps/android/version.json",
   analyticsUrl: "",           // optional hospital endpoint: POST JSON per event
-  ga4: { measurementId: "", apiSecret: "" },   // Google Analytics 4 (Measurement Protocol). Empty = off
+  ga4: { measurementId: "G-RJ6NL35LNT", apiSecret: "" },   // GA4: gtag.js with ID only; apiSecret optional (Measurement Protocol)
   player: "👨",
   // Real bhajan / dayro recordings (that you have rights to). Local: put mp3 in assets/music and write "music/x.mp3".
   // Remote: full https URL to an mp3. Track changes every stage and on voice "ભજન". Empty = synthesized music only.
@@ -12,9 +12,9 @@ window.CFG = {
   themes: ["linear-gradient(#1a2a6c,#b21f1f55,#fdbb2d)","linear-gradient(#0f3443,#34e89e)","linear-gradient(#41295a,#2F0743,#f8b500)","linear-gradient(#ff7e5f,#feb47b)"],
   // music: chords = soft pad; raga = tanpura drone + bansuri melody (+ manjira / temple bell). All original synthesized audio.
   music: [
-    { name: "શાંતિ", chords: [[216,272,324],[192,242,288],[162,204,243],[182,229,272]] },
-    { name: "પ્રભાત", chords: [[264,330,396],[297,371,445],[220,277,330],[247,311,370]] },
-    { name: "ધ્યાન", chords: [[144,216,288],[128,192,256],[162,243,324],[144,216,288]] },
+    { name: "શ્રીનાથજી ઝાંખી", raga: { sa: 261.6, scale: [1,9/8,5/4,3/2,5/3,2,9/4], manjira: true, bell: true, tune: [0,1,2,2,3,2,1,0, 2,3,4,4,5,4,3,2, 4,5,6,5,4,3,2,1, 2,2,1,0,1,2,0,0] } },
+    { name: "શ્રીનાથજી ઝાંખી – પ્રભાત", raga: { sa: 293.7, scale: [1,9/8,5/4,3/2,5/3,2], manjira: true, tune: [0,0,1,2,3,3,2,1, 3,4,5,4,3,2,1,0, 2,3,2,1,0,1,2,2, 4,3,2,1,1,0,0,0] } },
+    { name: "શ્રીનાથજી ઝાંખી – સંધ્યા", raga: { sa: 233.1, scale: [1,9/8,5/4,3/2,5/3,2], manjira: true, bell: true, tune: [4,4,3,2,3,4,5,4, 3,2,1,2,3,2,1,0, 0,1,2,3,4,3,2,1, 2,1,0,1,2,1,0,0] } },
     { name: "શ્રીનાથજી ઝાંખી (ભૂપાલી)", raga: { sa: 261.6, scale: [1,9/8,5/4,3/2,5/3,2,9/4], manjira: true } },
     { name: "હવેલી કીર્તન (યમન)", raga: { sa: 293.7, scale: [1,9/8,5/4,45/32,3/2,5/3,15/8,2], manjira: true } },
     { name: "સાંજ આરતી (દુર્ગા)", raga: { sa: 220, scale: [1,9/8,4/3,3/2,5/3,2], manjira: true, bell: true } },
@@ -25,7 +25,7 @@ window.CFG = {
     { name: "ડાયરો તાલ (કાફી)", raga: { sa: 233.1, scale: [1,9/8,6/5,4/3,3/2,5/3,9/5,2], manjira: true, bell: true } },
     { name: "શિવરંજની", raga: { sa: 220, scale: [1,9/8,6/5,3/2,5/3,2] } },
     { name: "હંસધ્વનિ", raga: { sa: 293.7, scale: [1,9/8,5/4,3/2,15/8,2], manjira: true } },
-    { name: "સંધ્યા", chords: [[196,247,294],[175,220,262],[165,208,247],[147,185,220]] }
+    { name: "ડાયરો – જય શ્રીનાથજી", raga: { sa: 246.9, scale: [1,9/8,5/4,4/3,3/2,5/3,2], manjira: true, bell: true, tune: [0,2,4,4,3,2,1,0, 4,5,6,5,4,3,2,2, 0,1,2,3,2,1,0,0, 3,4,5,4,3,2,1,0] } }
   ],
   // 20 worlds; each level moves to the next one (background, items, obstacle, music)
   stages: [
