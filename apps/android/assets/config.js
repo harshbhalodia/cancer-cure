@@ -2,7 +2,7 @@
 window.CFG = {
   brand: { hospital: "", app: "આશાદીપ", footer: "AshaDeep", tagline: "પરિવારનો પ્રેમ, જીવનની શક્તિ" },
   lang: "gu",                 // "gu" or "en"; also used for voice: gu-IN / en-IN
-  updateUrl: "https://raw.githubusercontent.com/harshbhalodia/cancer-cure/main/apps/android/version.json",
+  updateUrl: "",              // Play Store build: updates come from Play. (GitHub self-update: raw version.json URL)
   analyticsUrl: "",           // optional hospital endpoint: POST JSON per event
   ga4: { measurementId: "G-RJ6NL35LNT", apiSecret: "" },   // GA4: gtag.js with ID only; apiSecret optional (Measurement Protocol)
   player: "👨",

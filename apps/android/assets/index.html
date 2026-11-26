@@ -123,4 +123,6 @@ if(C.ga4.measurementId){window.dataLayer=window.dataLayer||[];window.gtag=functi
  const sc=document.createElement('script');sc.async=1;sc.src='https://www.googletagmanager.com/gtag/js?id='+C.ga4.measurementId;document.head.appendChild(sc)}
 if(S.isNew){delete S.isNew;save();ev('first_open_app')}ev('app_open',{sessions:S.sessions.length,level:S.lv});
 checkUpdate();
+// Store screenshot hooks
+if(location.hash=='#demo'){go(false);px=W*.45;for(let k=0;k<9;k++){spawn();items[k].y=100+k*H/11}}if(location.hash=='#demo2'){music();$('start').style.display='none';lv=2;levelUp()}
 </script></body></html>

@@ -1,6 +1,6 @@
 {
-  "versionCode": 7,
-  "versionName": "1.6",
+  "versionCode": 8,
+  "versionName": "1.7",
   "apkUrl": "https://github.com/harshbhalodia/cancer-cure/raw/main/apps/android/AshaDeep.apk",
-  "notes": "Check for updates whenever app is reopened"
+  "notes": "Google Play release: targetSdk 36, AAB, Play updates"
 }
